@@ -54,7 +54,7 @@ namespace Experimental{
 
 namespace Graph{
 
-enum GSAlgorithm{GS_DEFAULT, GS_PERMUTED, GS_TEAM};
+enum GSAlgorithm{GS_DEFAULT, GS_PERMUTED, GS_TEAM, GS_BLOCKED, GS_AYSNC};
 
 template <class lno_row_view_t_,
           class lno_nnz_view_t_,
@@ -277,6 +277,13 @@ private:
       permuted_x_vector = scalar_persistent_work_view_t("PERMUTED X VECTOR", num_cols);
     }
   }
+
+  void allocate_x_vector (nnz_lno_t num_cols){
+    if(permuted_x_vector.dimension_0() != size_t(num_cols)){
+      permuted_x_vector = scalar_persistent_work_view_t("PERMUTED X VECTOR", num_cols);
+    }
+  }
+
 
   scalar_persistent_work_view_t get_permuted_y_vector (){return this->permuted_y_vector;}
   scalar_persistent_work_view_t get_permuted_x_vector (){return this->permuted_x_vector;}
