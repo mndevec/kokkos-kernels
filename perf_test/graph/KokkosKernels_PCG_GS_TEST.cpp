@@ -51,7 +51,7 @@
 typedef size_t size_type;
 typedef int idx;
 typedef double wt;
-
+int block_size = 16;
 
 
 template<typename scalar_view_t>
@@ -108,9 +108,13 @@ void run_experiment(
 
   KernelHandle kh;
 
+  kh.set_team_work_size(block_size);
+
+
+  Kokkos::Impl::Timer timer1;
 
   kh.create_gs_handle();
-  Kokkos::Impl::Timer timer1;
+
   KokkosKernels::Experimental::Example::pcgsolve(
         kh
       , crsmat
@@ -139,8 +143,8 @@ void run_experiment(
 
 
 
-  /*
   kh.destroy_gs_handle();
+
   kh.create_gs_handle(KokkosKernels::Experimental::Graph::GS_PERMUTED);
 
   kok_x_vector = scalar_view_t("kok_x_vector", nv);
@@ -200,7 +204,73 @@ void run_experiment(
       << std::endl ;
 
 
+  kh.destroy_gs_handle();
 
+
+
+  kh.destroy_gs_handle();
+  kh.create_gs_handle(KokkosKernels::Experimental::Graph::GS_BLOCKED);
+
+  kok_x_vector = scalar_view_t("kok_x_vector", nv);
+  timer1.reset();
+  KokkosKernels::Experimental::Example::pcgsolve(
+        kh
+      , crsmat
+      , kok_b_vector
+      , kok_x_vector
+      , cg_iteration_limit
+      , cg_iteration_tolerance
+      , & cg_result
+      , true
+  );
+  Kokkos::fence();
+
+  solve_time = timer1.seconds();
+  std::cout  << "\nBLOCKED SGS SOLVE:"
+      << "\n\t(P)CG_NUM_ITER              [" << cg_result.iteration << "]"
+      << "\n\tMATVEC_TIME                 [" << cg_result.matvec_time << "]"
+      << "\n\tCG_RESIDUAL                 [" << cg_result.norm_res << "]"
+      << "\n\tCG_ITERATION_TIME           [" << cg_result.iter_time << "]"
+      << "\n\tPRECONDITIONER_TIME         [" << cg_result.precond_time << "]"
+      << "\n\tPRECONDITIONER_INIT_TIME    [" << cg_result.precond_init_time << "]"
+      << "\n\tPRECOND_APPLY_TIME_PER_ITER [" << cg_result.precond_time / (cg_result.iteration  + 1) << "]"
+      << "\n\tSOLVE_TIME                  [" << solve_time<< "]"
+      << std::endl ;
+
+  kh.destroy_gs_handle();
+
+  kh.create_gs_handle(KokkosKernels::Experimental::Graph::GS_AYSNC);
+
+  kok_x_vector = scalar_view_t("kok_x_vector", nv);
+  timer1.reset();
+  KokkosKernels::Experimental::Example::pcgsolve(
+        kh
+      , crsmat
+      , kok_b_vector
+      , kok_x_vector
+      , cg_iteration_limit
+      , cg_iteration_tolerance
+      , & cg_result
+      , true
+  );
+  Kokkos::fence();
+
+  solve_time = timer1.seconds();
+  std::cout  << "\nAYSNC SGS SOLVE:"
+      << "\n\t(P)CG_NUM_ITER              [" << cg_result.iteration << "]"
+      << "\n\tMATVEC_TIME                 [" << cg_result.matvec_time << "]"
+      << "\n\tCG_RESIDUAL                 [" << cg_result.norm_res << "]"
+      << "\n\tCG_ITERATION_TIME           [" << cg_result.iter_time << "]"
+      << "\n\tPRECONDITIONER_TIME         [" << cg_result.precond_time << "]"
+      << "\n\tPRECONDITIONER_INIT_TIME    [" << cg_result.precond_init_time << "]"
+      << "\n\tPRECOND_APPLY_TIME_PER_ITER [" << cg_result.precond_time / (cg_result.iteration  + 1) << "]"
+      << "\n\tSOLVE_TIME                  [" << solve_time<< "]"
+      << std::endl ;
+
+
+
+
+  /*
 
   kok_x_vector = scalar_view_t("kok_x_vector", nv);
   timer1.reset();
@@ -274,6 +344,11 @@ int main (int argc, char ** argv){
     else if ( 0 == strcasecmp( argv[i] , "mtx" ) ) {
       mtx_bin_file = argv[++i];
     }
+
+    else if ( 0 == strcasecmp( argv[i] , "bs" ) ) {
+      block_size = atoi(argv[++i]);
+    }
+
     else {
       cmdline[ CMD_ERROR ] = 1 ;
       std::cerr << "Unrecognized command line argument #" << i << ": " << argv[i] << std::endl ;
