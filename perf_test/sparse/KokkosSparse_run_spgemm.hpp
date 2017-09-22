@@ -147,6 +147,7 @@ crsMat_t3 run_experiment(
   int check_output = params.check_output;
   int mkl_sort_option = params.mkl_sort_option;
   int mkl_keep_output = params.mkl_keep_output;
+  size_t fast_memory_size = params.fast_memory_size;
   //spgemm_step++;
   typedef typename crsMat_t3::values_type::non_const_type scalar_view_t;
   typedef typename crsMat_t3::StaticCrsGraphType::row_map_type::non_const_type lno_view_t;
@@ -174,6 +175,8 @@ crsMat_t3 run_experiment(
   kh.set_shmem_size(shmemsize);
   kh.set_suggested_team_size(team_size);
   kh.set_suggested_vector_size(vector_size);
+
+  kh.set_fast_memory_size(fast_memory_size);
 
   if (use_dynamic_scheduling){
     kh.set_dynamic_scheduling(true);
@@ -310,6 +313,9 @@ crsMat_t3 run_experiment(
     break;
   case 15:
     kh.create_spgemm_handle(SPGEMM_KK_OUTERMULTIMEM);
+    break;
+  case 22:
+    kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMCACHE);
     break;
 
 

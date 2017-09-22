@@ -407,7 +407,7 @@ public:
   ////DECL IS AT _kkmem.hpp
   //////////////////////////////////////////////////////////////////////////
   template <typename a_row_view_t, typename a_nnz_view_t, typename a_scalar_view_t,
-            typename b_row_view_t, typename b_nnz_view_t, typename b_scalar_view_t,
+            typename b_row_view_t, typename b_row_view2_t,  typename b_nnz_view_t, typename b_scalar_view_t,
             typename c_row_view_t, typename c_nnz_view_t, typename c_scalar_view_t,
             typename pool_memory_type>
   struct PortableNumericCHASH;
@@ -547,7 +547,6 @@ public:
   //TODO: These are references only for outer product algorithm.
   //If the algorithm is removed, then remove the references.
 
-
   /**
    * \brief Symbolic phase of the SPGEMM.
    * \param rowmapC_: row pointers for the result matrix. Allocated before the call with size (n+1),
@@ -555,6 +554,12 @@ public:
    */
   template <typename c_row_view_t>
   void KokkosSPGEMM_symbolic(c_row_view_t rowmapC_);
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+  void KokkosSPGEMM_multi_mem_numeric(c_row_view_t &rowmapC_, c_lno_nnz_view_t &entriesC_, c_scalar_nnz_view_t &valuesC_);
+
+  template <typename c_row_view_t>
+  void KokkosSPGEMM_multi_mem_symbolic(c_row_view_t rowmapC_);
 
   template <typename c_row_view_t, typename c_nnz_view_t>
   void write_matrix_to_plot(
@@ -705,6 +710,48 @@ private:
       nnz_lno_t maxNumRoughNonzeros
   );
 
+  //multilevel memory spgemm functions
+  template <typename row_to_pool_view_t, typename pool_to_row_view_t>
+  size_t fill_rows_of_pool_sequential(nnz_lno_t current_a_row_begin, nnz_lno_t current_a_row_end,
+			  const_a_lno_row_view_t row_mapA, const_a_lno_nnz_view_t entriesA, const_b_lno_row_view_t row_mapB, const_b_lno_nnz_view_t entriesB,
+			  row_to_pool_view_t row_to_pool_index, pool_to_row_view_t pool_to_row_index);
+
+
+  template <typename row_to_pool_view_t, typename pool_to_row_view_t>
+  void maximize_overlap(	nnz_lno_t available_fast_memory_row_count,
+			  	  	  	  row_to_pool_view_t row_to_pool_index, pool_to_row_view_t pool_to_row_index,
+						  row_to_pool_view_t previous_row_to_pool_index
+						  );
+
+  void prepare_multi_mem_cache();
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+    void KokkosSPGEMM_numeric_multimem_cache_hash(
+          c_row_view_t rowmapC_,
+          c_lno_nnz_view_t entriesC_,
+          c_scalar_nnz_view_t valuesC_,
+          KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  template <typename row_to_pool_view_t, typename pool_to_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  void fill_fast_memory(
+	   	   int suggested_team_size, int suggested_vector_size,
+		  nnz_lno_t b_max_row_size_,
+		  nnz_lno_t team_work_size_,
+		  nnz_lno_t available_fast_memory_row_count_,
+		  row_to_pool_view_t row_to_pool_index_begin_, row_to_pool_view_t row_to_pool_index_end_,
+		  pool_to_row_view_t current_pool_reverse_pointers_,
+		  fast_memory_lno_view_t b_pool_entries_, fast_memory_scalar_view_t b_pool_values_,
+		  const_b_lno_row_view_t rowmapB_, const_b_lno_nnz_view_t entriesB_,   const_b_scalar_nnz_view_t valsB_);
+
+  template <typename row_to_pool_view_t, typename pool_to_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  struct FastMemoryCopier;
+  /*
+  template <typename row_to_pool_view_t, typename pool_to_row_view_t>
+    size_t fill_rows_of_pool_parallel(nnz_lno_t current_a_row_begin, nnz_lno_t current_a_row_end,
+  			  const_a_lno_row_view_t row_mapA, const_a_lno_nnz_view_t entriesA, const_b_lno_row_view_t row_mapB, const_b_lno_nnz_view_t entriesB,
+  			  row_to_pool_view_t row_to_pool_index, pool_to_row_view_t pool_to_row_index);
+
+  struct FillFastMemory;
+  */
 };
 
 
@@ -719,4 +766,5 @@ private:
 #include "KokkosSparse_spgemm_impl_def.hpp"
 #include "KokkosSparse_spgemm_impl_symbolic.hpp"
 #include "KokkosSparse_spgemm_impl_triangle.hpp"
+#include "KokkosSparse_spgemm_impl_multimem.hpp"
 #endif

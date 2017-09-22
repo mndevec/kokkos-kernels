@@ -130,13 +130,21 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
       memspaceinfo  = memspaceinfo >> 1;
       if (memspaceinfo & 1){
         params.work_mem_space = 1;
-        std::cout << "Using HBM for work memory space" << std::endl;
+        std::cout << "Using HBM for temp work memory space" << std::endl;
       }
       else {
         params.work_mem_space = 0;
-        std::cout << "Using DDR4 for work memory space" << std::endl;
+        std::cout << "Using DDR4 for temp work memory space" << std::endl;
       }
       memspaceinfo  = memspaceinfo >> 1;
+      if (memspaceinfo & 1){
+    	  params.slow_work_mem_space = 1;
+    	  std::cout << "Using HBM for persistent work memory space" << std::endl;
+      }
+      else {
+    	  params.slow_work_mem_space = 0;
+    	  std::cout << "Using DDR4 for persistent work memory space" << std::endl;
+      }
     }
     else if ( 0 == strcasecmp( argv[i] , "CRWC" ) ) {
       params.calculate_read_write_cost = 1;
@@ -190,6 +198,9 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
     }
     else if ( 0 == strcasecmp( argv[i] , "RS" ) ) {
       params.right_sort = 1;
+    }
+    else if ( 0 == strcasecmp( argv[i] , "FM" ) ) {
+    	params.fast_memory_size = atol( argv[++i] );
     }
 
     else if ( 0 == strcasecmp( argv[i] , "verbose" ) ) {
@@ -259,6 +270,9 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
       }
       else if ( 0 == strcasecmp( argv[i] , "TRIANGLEIADENSE" ) ) {
         params.algorithm = 21;
+      }
+      else if ( 0 == strcasecmp( argv[i] , "MULTIMEMCACHE" ) ) {
+    	  params.algorithm = 22;
       }
       else {
         std::cerr << "Unrecognized command line argument #" << i << ": " << argv[i] << std::endl ;

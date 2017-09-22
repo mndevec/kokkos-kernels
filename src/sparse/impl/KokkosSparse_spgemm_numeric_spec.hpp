@@ -294,6 +294,18 @@ struct SPGEMM_NUMERIC<KernelHandle,
       kspgemm.KokkosSPGEMM_numeric(row_mapC, entriesC, valuesC);
     }
     break;
+
+    case SPGEMM_KK_MULTIMEMCACHE:
+    {
+      KokkosSPGEMM
+      <KernelHandle,
+      a_size_view_t_, a_lno_view_t, a_scalar_view_t,
+      b_size_view_t_, b_lno_view_t,  b_scalar_view_t>
+      kspgemm (handle,m,n,k,row_mapA, entriesA, valuesA, transposeA, row_mapB, entriesB, valuesB, transposeB);
+      kspgemm.KokkosSPGEMM_multi_mem_numeric(row_mapC, entriesC, valuesC);
+    }
+    break;
+
     case SPGEMM_SERIAL:
     case SPGEMM_DEBUG:
       spgemm_debug_numeric(

@@ -105,141 +105,298 @@ namespace Experiment{
     }
 
     if (params.a_mem_space == 1){
-      if (params.b_mem_space == 1){
-        if (params.c_mem_space == 1){
-          if (params.work_mem_space == 1){
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_fast_crsmat, b_fast_crsmat, params);
-          }
-          else {
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_fast_crsmat, b_fast_crsmat, params);
-          }
+    	if (params.b_mem_space == 1){
+    		if (params.c_mem_space == 1){
+    			if (params.work_mem_space == 1){
 
-        }
-        else {
-          //C is in slow memory.
-          if (params.work_mem_space == 1){
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_fast_crsmat, b_fast_crsmat, params);
-          }
-          else {
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_fast_crsmat, b_fast_crsmat, params);
-          }
-        }
-      }
-      else {
-        //B is in slow memory
-        if (params.c_mem_space == 1){
-          if (params.work_mem_space == 1){
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_fast_crsmat, b_slow_crsmat, params);
-          }
-          else {
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_fast_crsmat, b_slow_crsmat, params);
-          }
+    				if (params.slow_work_mem_space == 1){
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
+    					(a_fast_crsmat, b_fast_crsmat, params);
+    				}
+    				else {
+    					c_fast_crsmat = KokkosKernels::Experiment::run_experiment
+    													<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, sbm_mem_space>
+    					    					(a_fast_crsmat, b_fast_crsmat, params);
+    				}
+    			}
+    			else {
+    				if (params.slow_work_mem_space == 1){
 
-        }
-        else {
-          //C is in slow memory.
-          if (params.work_mem_space == 1){
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_fast_crsmat, b_slow_crsmat, params);
-          }
-          else {
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_fast_crsmat, b_slow_crsmat, params);
-          }
-        }
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
+    					(a_fast_crsmat, b_fast_crsmat, params);
+    				}
+    				else {
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
+    					(a_fast_crsmat, b_fast_crsmat, params);
 
-      }
+    				}
+    			}
+
+    		}
+    		else {
+    			//C is in slow memory.
+				if (params.work_mem_space == 1){
+					if (params.slow_work_mem_space == 1){
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
+						(a_fast_crsmat, b_fast_crsmat, params);
+					}
+					else {
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, sbm_mem_space>
+						(a_fast_crsmat, b_fast_crsmat, params);
+					}
+				}
+				else {
+					if (params.slow_work_mem_space == 1){
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
+						(a_fast_crsmat, b_fast_crsmat, params);
+					}
+					else {
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
+						(a_fast_crsmat, b_fast_crsmat, params);
+					}
+
+				}
+    		}
+    	}
+    	else {
+    		//B is in slow memory
+    		if (params.c_mem_space == 1){
+    			if (params.work_mem_space == 1){
+    				if (params.slow_work_mem_space == 1){
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
+    					(a_fast_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, sbm_mem_space>
+    					(a_fast_crsmat, b_slow_crsmat, params);
+    				}
+    			}
+    			else {
+    				if (params.slow_work_mem_space == 1){
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
+    					(a_fast_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
+    					(a_fast_crsmat, b_slow_crsmat, params);
+    				}
+    			}
+
+    		}
+    		else {
+    			//C is in slow memory.
+				if (params.work_mem_space == 1){
+					if (params.slow_work_mem_space == 1){
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
+						(a_fast_crsmat, b_slow_crsmat, params);
+					}
+					else {
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, sbm_mem_space>
+						(a_fast_crsmat, b_slow_crsmat, params);
+					}
+				}
+				else {
+					if (params.slow_work_mem_space == 1){
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
+						(a_fast_crsmat, b_slow_crsmat, params);
+					}
+					else {
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
+						(a_fast_crsmat, b_slow_crsmat, params);
+					}
+				}
+    		}
+
+    	}
     }
     else {
-      //A is in slow memory
-      if (params.b_mem_space == 1){
-        if (params.c_mem_space == 1){
-          if (params.work_mem_space == 1){
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_slow_crsmat, b_fast_crsmat, params);
-          }
-          else {
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_slow_crsmat, b_fast_crsmat, params);
-          }
+    	//A is in slow memory
+    	if (params.b_mem_space == 1){
+    		if (params.c_mem_space == 1){
+    			if (params.work_mem_space == 1){
+    				if (params.slow_work_mem_space == 1){
 
-        }
-        else {
-          //C is in slow memory.
-          if (params.work_mem_space == 1){
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_slow_crsmat, b_fast_crsmat, params);
-          }
-          else {
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_slow_crsmat, b_fast_crsmat, params);
-          }
-        }
-      }
-      else {
-        //B is in slow memory
-        if (params.c_mem_space == 1){
-          if (params.work_mem_space == 1){
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_slow_crsmat, b_slow_crsmat, params);
-          }
-          else {
-            c_fast_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_slow_crsmat, b_slow_crsmat, params);
-          }
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_fast_crsmat, params);
+    				}
+    				else {
 
-        }
-        else {
-          //C is in slow memory.
-          if (params.work_mem_space == 1){
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
-                  (a_slow_crsmat, b_slow_crsmat, params);
-          }
-          else {
-            c_slow_crsmat =
-                KokkosKernels::Experiment::run_experiment
-                  <myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
-                  (a_slow_crsmat, b_slow_crsmat, params);
-          }
-        }
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_fast_crsmat, params);
+    				}
+    			}
+    			else {
+    				if (params.slow_work_mem_space == 1){
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_fast_crsmat, params);
+    				}
+    				else {
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_fast_crsmat, params);
+    				}
 
-      }
+    			}
+
+    		}
+    		else {
+    			//C is in slow memory.
+				if (params.work_mem_space == 1){
+					if (params.slow_work_mem_space == 1){
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
+						(a_slow_crsmat, b_fast_crsmat, params);
+					}
+					else {
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, hbm_mem_space, sbm_mem_space>
+						(a_slow_crsmat, b_fast_crsmat, params);
+
+					}
+
+				}
+				else {
+					if (params.slow_work_mem_space == 1){
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
+						(a_slow_crsmat, b_fast_crsmat, params);
+					}
+					else {
+
+						c_slow_crsmat =
+								KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
+						(a_slow_crsmat, b_fast_crsmat, params);
+					}
+				}
+    		}
+    	}
+    	else {
+    		//B is in slow memory
+    		if (params.c_mem_space == 1){
+    			if (params.work_mem_space == 1){
+    				if (params.slow_work_mem_space == 1){
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, hbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+
+    				}
+    			}
+    			else {
+    				if (params.slow_work_mem_space == 1){
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+
+    					c_fast_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    			}
+
+    		}
+    		else {
+    			//C is in slow memory.
+    			if (params.work_mem_space == 1){
+    				if (params.slow_work_mem_space == 1){
+
+    					c_slow_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+    					c_slow_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, hbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+
+    				}
+    			}
+    			else {
+    				if (params.slow_work_mem_space == 1){
+
+    					c_slow_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    				else {
+
+    					c_slow_crsmat =
+    							KokkosKernels::Experiment::run_experiment
+								<myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, sbm_mem_space>
+    					(a_slow_crsmat, b_slow_crsmat, params);
+    				}
+    			}
+    		}
+
+    	}
 
     }
 

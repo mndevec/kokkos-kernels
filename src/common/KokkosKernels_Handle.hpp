@@ -145,6 +145,9 @@ public:
 	  this->KKVERBOSE = right_side_handle.get_verbose();
 	  this->vector_size = right_side_handle.get_set_suggested_vector_size();
 
+	  this->fast_memory_size  = right_side_handle.get_fast_memory_size();
+
+
 	  is_owner_of_the_gc_handle = false;
 	  is_owner_of_the_gs_handle = false;
 	  is_owner_of_the_spgemm_handle = false;
@@ -195,6 +198,7 @@ private:
   bool use_dynamic_scheduling;
   bool KKVERBOSE;
   int vector_size;
+  size_t fast_memory_size;
 
   bool is_owner_of_the_gc_handle;
   bool is_owner_of_the_gs_handle;
@@ -210,7 +214,7 @@ public:
       team_work_size (-1), shared_memory_size(16128),
       suggested_team_size(-1),
       my_exec_space(KokkosKernels::Impl::kk_get_exec_space_type<HandleExecSpace>()),
-      use_dynamic_scheduling(true), KKVERBOSE(false),vector_size(-1),
+      use_dynamic_scheduling(true), KKVERBOSE(false),vector_size(-1), fast_memory_size(size_t(15) * 1024 * 1024 * 1024),
 	  is_owner_of_the_gc_handle(true), is_owner_of_the_gs_handle(true), is_owner_of_the_spgemm_handle(true){}
 
   ~KokkosKernelsHandle(){
@@ -218,7 +222,12 @@ public:
     this->destroy_graph_coloring_handle();
     this->destroy_spgemm_handle();
   }
-
+  void set_fast_memory_size(size_t fast_memory_size_){
+    this->fast_memory_size = fast_memory_size_;
+  }
+  size_t get_fast_memory_size(){
+    return this->fast_memory_size;
+  }
 
   void set_verbose(bool verbose_){
     this->KKVERBOSE = verbose_;

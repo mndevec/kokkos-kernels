@@ -218,6 +218,18 @@ struct SPGEMM_SYMBOLIC < KernelHandle,
       kspgemm.KokkosSPGEMM_symbolic(row_mapC);
     }
     break;
+
+    case SPGEMM_KK_MULTIMEMCACHE:
+    {
+      KokkosSPGEMM
+      <KernelHandle,
+      a_size_view_t_, a_lno_view_t, typename KernelHandle::in_scalar_nnz_view_t,
+      b_size_view_t_, b_lno_view_t, typename KernelHandle::in_scalar_nnz_view_t>
+      kspgemm (handle,m,n,k,row_mapA, entriesA, transposeA, row_mapB, entriesB, transposeB);
+      kspgemm.KokkosSPGEMM_multi_mem_symbolic(row_mapC);
+    }
+    break;
+
     case SPGEMM_SERIAL:
     case SPGEMM_DEBUG:
       spgemm_debug_symbolic(
