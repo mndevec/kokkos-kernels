@@ -87,9 +87,18 @@ bool is_same_matrix(crsMat_t output_mat1, crsMat_t output_mat2){
   lno_nnz_view_t h_ent2 (Kokkos::ViewAllocateWithoutInitializing("e1"), nentries2);
   scalar_view_t h_vals2 (Kokkos::ViewAllocateWithoutInitializing("v1"), nvals2);
 
-  if (nrows1 != nrows2) return false;
-  if (nentries1 != nentries2) return false;
-  if (nvals1 != nvals2) return false;
+  if (nrows1 != nrows2) {
+	  std::cout << "nrows are different" << std::endl;
+	  return false;
+  }
+  if (nentries1 != nentries2) {
+	  std::cout << "nentries are different" << std::endl;
+	  return false;
+  }
+  if (nvals1 != nvals2) {
+	  std::cout << "nvals are different" << std::endl;
+	  return false;
+  }
 
   KokkosKernels::Impl::kk_sort_graph
       <typename graph_t::row_map_type,
@@ -107,12 +116,18 @@ bool is_same_matrix(crsMat_t output_mat1, crsMat_t output_mat2){
   is_identical = KokkosKernels::Impl::kk_is_identical_view
       <typename graph_t::row_map_type, typename graph_t::row_map_type, typename lno_view_t::value_type,
       typename device::execution_space>(output_mat1.graph.row_map, output_mat2.graph.row_map, 0);
-  if (!is_identical) return false;
+  if (!is_identical) {
+	  std::cout << "rowmaps are different" << std::endl;
+	  return false;
+  }
 
   is_identical = KokkosKernels::Impl::kk_is_identical_view
       <lno_nnz_view_t, lno_nnz_view_t, typename lno_nnz_view_t::value_type,
       typename device::execution_space>(h_ent1, h_ent2, 0 );
-  if (!is_identical) return false;
+  if (!is_identical) {
+  	  std::cout << "entries are different" << std::endl;
+  	  return false;
+    }
 
   is_identical = KokkosKernels::Impl::kk_is_identical_view
       <scalar_view_t, scalar_view_t, typename scalar_view_t::value_type,
@@ -317,6 +332,12 @@ crsMat_t3 run_experiment(
   case 22:
     kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMCACHE);
     break;
+  case 23:
+    kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMBBLOCK);
+    break;
+  case 24:
+    kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMABLOCK);
+    break;
 
 
   default:
@@ -402,6 +423,7 @@ crsMat_t3 run_experiment(
   std::cout << "row_mapC:" << row_mapC.dimension_0() << std::endl;
   std::cout << "entriesC:" << entriesC.dimension_0() << std::endl;
   std::cout << "valuesC:" << valuesC.dimension_0() << std::endl;
+  KokkosKernels::Impl::print_1Dview(row_mapC);
   KokkosKernels::Impl::print_1Dview(valuesC);
   KokkosKernels::Impl::print_1Dview(entriesC);
 

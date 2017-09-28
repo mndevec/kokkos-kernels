@@ -411,6 +411,12 @@ public:
             typename c_row_view_t, typename c_nnz_view_t, typename c_scalar_view_t,
             typename pool_memory_type>
   struct PortableNumericCHASH;
+
+  template <typename a_row_view_t, typename a_nnz_view_t, typename a_scalar_view_t,
+              typename b_row_view_t, typename b_row_view2_t,  typename b_nnz_view_t, typename b_scalar_view_t,
+              typename c_row_view_t, typename c_row_view2_t, typename c_nnz_view_t, typename c_scalar_view_t,
+              typename pool_memory_type>
+    struct PortableNumericCHASH_ABLOCK;
 private:
   //KKMEM only difference is work memory does not use output memory for 2nd level accumulator.
   template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
@@ -724,12 +730,33 @@ private:
 						  );
 
   void prepare_multi_mem_cache();
+  void prepare_multi_mem_block_b();
+  void prepare_multi_mem_block_a();
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+    void KokkosSPGEMM_numeric_multimem_ablock_hash(
+          c_row_view_t rowmapC_,
+          c_lno_nnz_view_t entriesC_,
+          c_scalar_nnz_view_t valuesC_,
+          KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+    void KokkosSPGEMM_numeric_multimem_bblock_hash(
+          c_row_view_t rowmapC_,
+          c_lno_nnz_view_t entriesC_,
+          c_scalar_nnz_view_t valuesC_,
+          KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
   template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
     void KokkosSPGEMM_numeric_multimem_cache_hash(
           c_row_view_t rowmapC_,
           c_lno_nnz_view_t entriesC_,
           c_scalar_nnz_view_t valuesC_,
           KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  size_t partition_b_sequential(nnz_lno_t current_b_col_begin, nnz_lno_t current_b_col_end,
+				const_b_lno_row_view_t row_mapB_, const_b_lno_nnz_view_t entriesB_,
+				row_lno_persistent_work_view_t outrowmapB);
 
   template <typename row_to_pool_view_t, typename pool_to_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
   void fill_fast_memory(
@@ -742,8 +769,20 @@ private:
 		  fast_memory_lno_view_t b_pool_entries_, fast_memory_scalar_view_t b_pool_values_,
 		  const_b_lno_row_view_t rowmapB_, const_b_lno_nnz_view_t entriesB_,   const_b_scalar_nnz_view_t valsB_);
 
+  template <typename fast_memory_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  void fill_fast_memory_bblock(
+		  int suggested_team_size, int suggested_vector_size,
+		  nnz_lno_t team_work_size_,
+		  nnz_lno_t b_col_begin, nnz_lno_t b_col_end,
+		  fast_memory_row_view_t row_mapB_fast,
+		  fast_memory_lno_view_t b_pool_entries_, fast_memory_scalar_view_t b_pool_values_,
+		  const_b_lno_row_view_t rowmapB_, const_b_lno_nnz_view_t entriesB_,   const_b_scalar_nnz_view_t valsB_);
+
   template <typename row_to_pool_view_t, typename pool_to_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
   struct FastMemoryCopier;
+
+  template <typename fast_memory_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  struct FastMemoryCopierBBlock;
   /*
   template <typename row_to_pool_view_t, typename pool_to_row_view_t>
     size_t fill_rows_of_pool_parallel(nnz_lno_t current_a_row_begin, nnz_lno_t current_a_row_end,

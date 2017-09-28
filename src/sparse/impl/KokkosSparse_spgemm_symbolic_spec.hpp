@@ -220,6 +220,8 @@ struct SPGEMM_SYMBOLIC < KernelHandle,
     break;
 
     case SPGEMM_KK_MULTIMEMCACHE:
+    case SPGEMM_KK_MULTIMEMBBLOCK:
+    case SPGEMM_KK_MULTIMEMABLOCK:
     {
       KokkosSPGEMM
       <KernelHandle,

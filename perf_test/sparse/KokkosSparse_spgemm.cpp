@@ -274,6 +274,12 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
       else if ( 0 == strcasecmp( argv[i] , "MULTIMEMCACHE" ) ) {
     	  params.algorithm = 22;
       }
+      else if ( 0 == strcasecmp( argv[i] , "MULTIMEMBBLOCK" ) ) {
+    	  params.algorithm = 23;
+      }
+      else if ( 0 == strcasecmp( argv[i] , "MULTIMEMABLOCK" ) ) {
+    	  params.algorithm = 24;
+      }
       else {
         std::cerr << "Unrecognized command line argument #" << i << ": " << argv[i] << std::endl ;
         print_options();

@@ -63,7 +63,7 @@ namespace KokkosSparse{
 enum SPGEMMAlgorithm{SPGEMM_DEFAULT, SPGEMM_DEBUG, SPGEMM_SERIAL,
                       SPGEMM_CUSPARSE,  SPGEMM_CUSP, SPGEMM_MKL, SPGEMM_MKL2PHASE, SPGEMM_VIENNA,
                      //SPGEMM_KK1, SPGEMM_KK2, SPGEMM_KK3, SPGEMM_KK4,
-                      SPGEMM_KK_MULTIMEM, SPGEMM_KK_OUTERMULTIMEM, SPGEMM_KK_MULTIMEMCACHE,
+                      SPGEMM_KK_MULTIMEM, SPGEMM_KK_OUTERMULTIMEM, SPGEMM_KK_MULTIMEMCACHE, SPGEMM_KK_MULTIMEMBBLOCK, SPGEMM_KK_MULTIMEMABLOCK,
                       SPGEMM_KK_TRIANGLE_AI, //SPGEMM_KK_TRIANGLE_DEFAULT, SPGEMM_KK_TRIANGLE_MEM, SPGEMM_KK_TRIANGLE_DENSE,
                       SPGEMM_KK_TRIANGLE_IA_UNION, //SPGEMM_KK_TRIANGLE_DEFAULT_IA_UNION, SPGEMM_KK_TRIANGLE_MEM_IA_UNION, SPGEMM_KK_TRIANGLE_DENSE_IA_UNION,
                       SPGEMM_KK_TRIANGLE_IA,//SPGEMM_KK_TRIANGLE_IA_DEFAULT, SPGEMM_KK_TRIANGLE_IA_MEM, SPGEMM_KK_TRIANGLE_IA_DENSE,
@@ -239,6 +239,7 @@ private:
 
   std::vector<nnz_lno_persistent_work_view_t> pool_reverse_pointers;
   std::vector<nnz_lno_t> multi_mem_ranges;
+  std::vector<row_lno_persistent_work_view_t> b_rowmap_pointers;
 
   nnz_lno_t max_b_row_size, num_rows_of_in_fast_memory;
 

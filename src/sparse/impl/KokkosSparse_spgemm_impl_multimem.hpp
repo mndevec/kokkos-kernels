@@ -65,7 +65,7 @@ void KokkosSPGEMM
     KokkosKernels::Impl::ExecSpaceType my_exec_space = KokkosKernels::Impl::get_exec_space_type<MyExecSpace>();
 
     if (KOKKOSKERNELS_VERBOSE){
-      std::cout << "Numeric PHASE" << std::endl;
+      std::cout << "MULTIMEM Numeric PHASE" << std::endl;
     }
 
     if (spgemm_algorithm == SPGEMM_KK_SPEED)
@@ -86,6 +86,12 @@ void KokkosSPGEMM
     else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMCACHE ){
     	this->KokkosSPGEMM_numeric_multimem_cache_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
+    else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMBBLOCK){
+    	this->KokkosSPGEMM_numeric_multimem_bblock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
+    }
+    else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMABLOCK){
+    	this->KokkosSPGEMM_numeric_multimem_ablock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
+    }
     else {
       this->KokkosSPGEMM_numeric_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
@@ -103,7 +109,6 @@ void KokkosSPGEMM
   //SPGEMMAlgorithm spgemm_algorithm = this->handle->get_spgemm_handle()->get_algorithm_type();
   {
 
-	  std::cout << "KokkosSPGEMM_multi_mem_symbolic 1" << std::endl;
     //number of rows and nnzs
     nnz_lno_t n = this->row_mapB.dimension_0() - 1;
     size_type nnz = this->entriesB.dimension_0();
@@ -186,8 +191,20 @@ void KokkosSPGEMM
     }
 #endif
 
-    timer1.reset();
-    this->prepare_multi_mem_cache();
+   timer1.reset();
+   switch (this->spgemm_algorithm){
+   case SPGEMM_KK_MULTIMEMCACHE:
+	   this->prepare_multi_mem_cache();
+	   break;
+   case SPGEMM_KK_MULTIMEMBBLOCK:
+	   this->prepare_multi_mem_block_b();
+	   break;
+   case SPGEMM_KK_MULTIMEMABLOCK:
+   	   this->prepare_multi_mem_block_a();
+   	   break;
+   default:
+	   break;
+   }
 
     if (KOKKOSKERNELS_VERBOSE){
     	std::cout << "\t\tSymbolic MultiMEM Calc Time:" << timer1.seconds() << std::endl;
@@ -202,6 +219,324 @@ void KokkosSPGEMM
     	//
     //
   }
+
+
+	template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
+	typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
+
+	size_t KokkosSPGEMM <HandleType, a_row_view_t_, a_lno_nnz_view_t_, a_scalar_nnz_view_t_,
+									 b_lno_row_view_t_, b_lno_nnz_view_t_, b_scalar_nnz_view_t_>::
+	partition_b_sequential(nnz_lno_t current_b_col_begin, nnz_lno_t current_b_col_end,
+				const_b_lno_row_view_t row_mapB_, const_b_lno_nnz_view_t entriesB_,
+				row_lno_persistent_work_view_t outrowmapB){
+
+		size_type overall_size = 0;
+		nnz_lno_t b_rows = row_mapB_.dimension_0() - 1;
+		for (nnz_lno_t i = 0; i< b_rows; ++i){
+			nnz_lno_t out_row_size = 0;
+			size_type row_begin = row_mapB_(i);
+			nnz_lno_t row_size = row_mapB_(i + 1) - row_begin;
+			for (nnz_lno_t colind = 0; colind < row_size; ++colind){
+				nnz_lno_t col = entriesB_(colind + row_begin);
+				if (col >= current_b_col_begin && col < current_b_col_end){
+					++out_row_size;
+				}
+			}
+			outrowmapB(i) = out_row_size;
+			overall_size += out_row_size;
+		}
+		KokkosKernels::Impl::kk_exclusive_parallel_prefix_sum<row_lno_persistent_work_view_t, MyExecSpace>(b_rows + 1, outrowmapB);
+		MyExecSpace::fence();
+		return overall_size;
+
+	}
+
+	template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
+			  typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
+	void KokkosSPGEMM <HandleType, a_row_view_t_, a_lno_nnz_view_t_, a_scalar_nnz_view_t_,
+	b_lno_row_view_t_, b_lno_nnz_view_t_, b_scalar_nnz_view_t_>::prepare_multi_mem_block_a(){
+
+		nnz_lno_t n = this->row_mapB.dimension_0() - 1;
+		//so far we found the output structure.
+		//now for multilevel memory algorithm, we want to setup how we will proceed the computation.
+		//1- FM = get fast memory size.
+		size_t fast_memory_size = this->handle->get_fast_memory_size();
+
+
+		if (KOKKOSKERNELS_VERBOSE){
+			std::cout << "\t\tfast_memory_size:" << fast_memory_size << std::endl;
+		}
+
+		// b's row pointers size is br = size_type * (brows + 1) . We need only one as we can compact it.
+		size_t b_row_map_sizes = sizeof(size_type) * (this->b_row_cnt + 1);
+		// (sizeof (lno_t) + sizeof(scalar_t)) * max_row_size_of_b = pool_chunk_size
+		size_t available_size_for_b = fast_memory_size - b_row_map_sizes;
+
+		// (FM - br ) / pool_chunk_size  == fastrows that can fit into fast memory.
+
+		nnz_lno_t max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
+
+		size_type overall_b_size = this->entriesB.dimension_0();
+		double b_ratio = static_cast <double> (max_num_entries_in_fast_memory) / overall_b_size ;
+
+		nnz_lno_t num_ideal_b_row_in_fast_memory = static_cast <nnz_lno_t> (b_ratio * this->b_row_cnt);
+		nnz_lno_t num_partitions = static_cast <nnz_lno_t> (1.0 / b_ratio) + 1;
+
+
+		if (KOKKOSKERNELS_VERBOSE){
+			std::cout << "\t\tnum_ideal_b_columns_in_fast_memory:" << num_ideal_b_row_in_fast_memory << std::endl;
+			std::cout << "\t\tnum_partitions:" << num_partitions << std::endl;
+		}
+
+		nnz_lno_t current_a_row_begin = 0 ;
+
+
+		std::vector<nnz_lno_t> multi_mem_b_column_ranges;
+		multi_mem_b_column_ranges.push_back(0);
+
+
+		size_type size_on_the_left = 0;
+
+
+		for (int counter = 0; ; ++counter)
+		{
+			nnz_lno_t b_row_begin_to_test = multi_mem_b_column_ranges[counter];
+			nnz_lno_t b_row_end_to_test = b_row_begin_to_test + num_ideal_b_row_in_fast_memory;
+			b_row_end_to_test = KOKKOSKERNELS_MACRO_MIN(b_row_end_to_test, this->b_row_cnt);
+
+
+			size_type lower_bound = size_on_the_left;
+			nnz_lno_t lower_bound_column = b_row_begin_to_test;
+
+			size_type upper_bound = overall_b_size;
+			nnz_lno_t upper_bound_column = this->b_col_cnt;
+
+			bool done = false;
+			size_type b_size_for_the_range = 0;
+			while (!done){
+
+				b_size_for_the_range = this->row_mapB(b_row_end_to_test) - size_on_the_left;
+#if 0
+				if (KOKKOSKERNELS_VERBOSE){
+					std::cout << "\n\t\t\tb_row_begin_to_test:" << b_row_begin_to_test << " b_row_end_to_test:" << b_row_end_to_test << std::endl;
+					std::cout << "\t\t\tb_size_for_the_range:" << b_size_for_the_range << " max_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
+					std::cout << "\t\t\tlower_bound_column:" << lower_bound_column << " lower_bound:" << lower_bound << std::endl;
+					std::cout << "\t\t\tupper_bound_column:" << upper_bound_column << " upper_bound:" << upper_bound << std::endl;
+				}
+#endif
+				if (b_size_for_the_range < max_num_entries_in_fast_memory){
+					lower_bound_column = b_row_end_to_test;
+					lower_bound = b_size_for_the_range + size_on_the_left;
+
+					if (upper_bound_column == lower_bound_column ){
+						break;
+					}
+
+					nnz_lno_t shift = ((upper_bound_column - lower_bound_column) / static_cast <double>(upper_bound - lower_bound))
+													* (max_num_entries_in_fast_memory - b_size_for_the_range);
+					if (shift == 0) shift = 1;
+					if (shift == upper_bound_column - lower_bound_column) break;
+
+					//now we need to increase
+					b_row_end_to_test = shift + lower_bound_column;
+				}
+				else if (b_size_for_the_range > max_num_entries_in_fast_memory){
+
+					upper_bound_column = b_row_end_to_test;
+					upper_bound = b_size_for_the_range + size_on_the_left;
+
+					if (upper_bound_column <= lower_bound_column +1){
+						b_size_for_the_range = lower_bound;
+						b_row_end_to_test = lower_bound_column;
+						break;
+					}
+
+					nnz_lno_t shift = ((upper_bound_column - lower_bound_column) / static_cast <double>(upper_bound - lower_bound))
+													* (b_size_for_the_range - max_num_entries_in_fast_memory);
+					if (shift == 0) shift = 1;
+					if (shift == upper_bound_column - lower_bound_column) break;
+					b_row_end_to_test = -shift + upper_bound_column;
+				}
+				else {
+					break;
+				}
+			}
+
+
+			if (KOKKOSKERNELS_VERBOSE){
+				std::cout << "\t\tPart:" << counter << " col_end_to_test:" << b_row_end_to_test << " b_size_for_the_range:" << b_size_for_the_range << std::endl;
+				std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
+			}
+			size_on_the_left = this->row_mapB(b_row_end_to_test);
+
+			multi_mem_b_column_ranges.push_back(b_row_end_to_test);
+			if (b_row_end_to_test == this->b_col_cnt) break;
+		}
+
+		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		/*
+		this->handle->get_spgemm_handle()->pool_reverse_pointers = b_rowmap_entries;
+		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		this->handle->get_spgemm_handle()->max_b_row_size = max_brow_size;
+		this->handle->get_spgemm_handle()->num_rows_of_in_fast_memory = num_rows_of_in_fast_memory;
+		 */
+}
+
+
+	template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
+			  typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
+	void KokkosSPGEMM <HandleType, a_row_view_t_, a_lno_nnz_view_t_, a_scalar_nnz_view_t_,
+	b_lno_row_view_t_, b_lno_nnz_view_t_, b_scalar_nnz_view_t_>::prepare_multi_mem_block_b(){
+
+		nnz_lno_t n = this->row_mapB.dimension_0() - 1;
+		//so far we found the output structure.
+		//now for multilevel memory algorithm, we want to setup how we will proceed the computation.
+		//1- FM = get fast memory size.
+		size_t fast_memory_size = this->handle->get_fast_memory_size();
+
+
+		if (KOKKOSKERNELS_VERBOSE){
+			std::cout << "\t\tfast_memory_size:" << fast_memory_size << std::endl;
+		}
+
+		// b's row pointers size is br = size_type * (brows + 1) . We need only one as we can compact it.
+		size_t b_row_map_sizes = sizeof(size_type) * (this->b_row_cnt + 1);
+		// (sizeof (lno_t) + sizeof(scalar_t)) * max_row_size_of_b = pool_chunk_size
+		size_t available_size_for_b = fast_memory_size - b_row_map_sizes;
+
+		// (FM - br ) / pool_chunk_size  == fastrows that can fit into fast memory.
+
+		nnz_lno_t max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
+
+		size_type overall_b_size = this->entriesB.dimension_0();
+		double b_ratio = static_cast <double> (max_num_entries_in_fast_memory) / overall_b_size ;
+
+		nnz_lno_t num_ideal_b_columns_in_fast_memory = static_cast <nnz_lno_t> (b_ratio * this->b_col_cnt);
+		nnz_lno_t num_partitions = static_cast <nnz_lno_t> (1.0 / b_ratio) + 1;
+
+
+		if (KOKKOSKERNELS_VERBOSE){
+			std::cout << "\t\tnum_ideal_b_columns_in_fast_memory:" << num_ideal_b_columns_in_fast_memory << std::endl;
+			std::cout << "\t\tnum_partitions:" << num_partitions << std::endl;
+		}
+
+		nnz_lno_t current_a_row_begin = 0 ;
+
+
+		std::vector<row_lno_persistent_work_view_t> b_rowmap_entries;
+		std::vector<nnz_lno_t> multi_mem_b_column_ranges;
+		multi_mem_b_column_ranges.push_back(0);
+
+		row_lno_persistent_work_view_t prev_b_rowmap_entry("b_rowmap entry", b_row_cnt + 1);
+		row_lno_persistent_work_view_t tmp_b_rowmap_entry;
+
+
+		size_type size_on_the_left = 0;
+
+
+		for (int counter = 0; ; ++counter)
+		{
+			nnz_lno_t col_begin_to_test = multi_mem_b_column_ranges[counter];
+			nnz_lno_t col_end_to_test = col_begin_to_test + num_ideal_b_columns_in_fast_memory;
+			col_end_to_test = KOKKOSKERNELS_MACRO_MIN(col_end_to_test, this->b_col_cnt);
+
+
+			size_type lower_bound = size_on_the_left;
+			nnz_lno_t lower_bound_column = col_begin_to_test;
+
+			size_type upper_bound = overall_b_size;
+			nnz_lno_t upper_bound_column = this->b_col_cnt;
+
+
+			row_lno_persistent_work_view_t b_rowmap_entry("b_rowmap entry", b_row_cnt + 1);
+
+
+			MyExecSpace::fence();
+
+			bool done = false;
+			size_type b_size_for_the_range = 0;
+			while (!done){
+
+				b_size_for_the_range =
+						partition_b_sequential(
+								col_begin_to_test, col_end_to_test,
+								row_mapB, entriesB,
+								b_rowmap_entry);
+#if 0
+				if (KOKKOSKERNELS_VERBOSE){
+					std::cout << "\n\t\t\tcol_begin_to_test:" << col_begin_to_test << " col_end_to_test:" << col_end_to_test << std::endl;
+					std::cout << "\t\t\tb_size_for_the_range:" << b_size_for_the_range << " max_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
+					std::cout << "\t\t\tlower_bound_column:" << lower_bound_column << " lower_bound:" << lower_bound << std::endl;
+					std::cout << "\t\t\tupper_bound_column:" << upper_bound_column << " upper_bound:" << upper_bound << std::endl;
+				}
+#endif
+				if (b_size_for_the_range < max_num_entries_in_fast_memory){
+					lower_bound_column = col_end_to_test;
+					lower_bound = b_size_for_the_range + size_on_the_left;
+
+					if (upper_bound_column == lower_bound_column ){
+						break;
+					}
+
+					nnz_lno_t shift = ((upper_bound_column - lower_bound_column) / static_cast <double>(upper_bound - lower_bound))
+											* (max_num_entries_in_fast_memory - b_size_for_the_range);
+					if (shift == 0) shift = 1;
+					if (shift == upper_bound_column - lower_bound_column) break;
+
+					tmp_b_rowmap_entry = prev_b_rowmap_entry;
+					prev_b_rowmap_entry = b_rowmap_entry;
+					b_rowmap_entry = tmp_b_rowmap_entry;
+					//now we need to increase
+					col_end_to_test = shift + lower_bound_column;
+				}
+				else if (b_size_for_the_range > max_num_entries_in_fast_memory){
+
+					upper_bound_column = col_end_to_test;
+					upper_bound = b_size_for_the_range + size_on_the_left;
+
+					if (upper_bound_column <= lower_bound_column +1){
+						tmp_b_rowmap_entry = prev_b_rowmap_entry;
+						prev_b_rowmap_entry = b_rowmap_entry;
+						b_rowmap_entry = tmp_b_rowmap_entry;
+						b_size_for_the_range = lower_bound;
+						col_end_to_test = lower_bound_column;
+						break;
+					}
+
+					nnz_lno_t shift = ((upper_bound_column - lower_bound_column) / static_cast <double>(upper_bound - lower_bound))
+											* (b_size_for_the_range - max_num_entries_in_fast_memory);
+					if (shift == 0) shift = 1;
+					if (shift == upper_bound_column - lower_bound_column) break;
+					col_end_to_test = -shift + upper_bound_column;
+				}
+				else {
+					break;
+				}
+			}
+
+
+			if (KOKKOSKERNELS_VERBOSE){
+				std::cout << "\t\tPart:" << counter << " col_end_to_test:" << col_end_to_test << " b_size_for_the_range:" << b_size_for_the_range << std::endl;
+				std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
+			}
+
+			multi_mem_b_column_ranges.push_back(col_end_to_test);
+			b_rowmap_entries.push_back(b_rowmap_entry);
+			if (col_end_to_test == this->b_col_cnt) break;
+		}
+
+		this->handle->get_spgemm_handle()->b_rowmap_pointers = b_rowmap_entries;
+		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		/*
+		this->handle->get_spgemm_handle()->pool_reverse_pointers = b_rowmap_entries;
+		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		this->handle->get_spgemm_handle()->max_b_row_size = max_brow_size;
+		this->handle->get_spgemm_handle()->num_rows_of_in_fast_memory = num_rows_of_in_fast_memory;
+		*/
+}
+
+
+
 
   template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
             typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
@@ -267,7 +602,9 @@ void KokkosSPGEMM
 	    	Kokkos::deep_copy(pool_to_row_index, -1);
 	    	MyExecSpace::fence();
 	    	while (min_space_for_a_rows > 0){
-	    		//std::cout << "current_a_row_begin" << " current_a_row_end:" << current_a_row_end << std::endl;
+	    		//std::cout << "current_a_row_begin:" << current_a_row_begin << " current_a_row_end:" << current_a_row_end
+	    		//			<< " available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
+
 	    		nnz_lno_t allocated_row_count = fill_rows_of_pool_sequential(
 	    				current_a_row_begin, current_a_row_end,
 						row_mapA, entriesA, row_mapB, entriesB,
@@ -300,12 +637,14 @@ void KokkosSPGEMM
 	    		pool_reverse_pointers.push_back(pool_to_row_index);
 
 	    	}
+	    	/*
 	    	if (KOKKOSKERNELS_VERBOSE){
 	    		std::cout << "\t\tPOOL AND ROWS FOR STEP:" << counter << std::endl;
 	    		std::cout << "\t\t"; KokkosKernels::Impl::print_1Dview(row_to_pool_index);
 	    		std::cout << "\t\t"; KokkosKernels::Impl::print_1Dview(pool_to_row_index);
 	    		std::cout << "\t\t#######################" << std::endl;
 	    	}
+	    	*/
 	    	previous_row_to_pool_index = row_to_pool_index;
 	    }
 
@@ -414,6 +753,117 @@ void KokkosSPGEMM
 		  });
 	  }
   };
+
+
+
+  template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
+            typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
+  template <typename fast_memory_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  struct  KokkosSPGEMM <HandleType, a_row_view_t_, a_lno_nnz_view_t_, a_scalar_nnz_view_t_,
+  	  	  	  	  b_lno_row_view_t_, b_lno_nnz_view_t_, b_scalar_nnz_view_t_>::
+				  FastMemoryCopierBBlock{
+	  nnz_lno_t _team_work_size;
+	  nnz_lno_t _b_row_count;
+	  nnz_lno_t _b_col_begin, _b_col_end;
+	  fast_memory_row_view_t _b_fast_rowmap;
+	  fast_memory_lno_view_t _b_pool_entries; fast_memory_scalar_view_t _b_pool_values;
+	  const_b_lno_row_view_t _rowmapB;
+	  const_b_lno_nnz_view_t _entriesB;
+	  const_b_scalar_nnz_view_t _valsB;
+	  KokkosKernels::Impl::ExecSpaceType _MyEnumExecSpace;
+
+	  FastMemoryCopierBBlock (
+	 		  nnz_lno_t team_work_size_,
+			  nnz_lno_t b_row_count,
+	 		  nnz_lno_t b_col_begin, nnz_lno_t b_col_end,
+	 		  fast_memory_row_view_t row_mapB_fast,
+	 		  fast_memory_lno_view_t b_pool_entries_, fast_memory_scalar_view_t b_pool_values_,
+	 		  const_b_lno_row_view_t rowmapB_, const_b_lno_nnz_view_t entriesB_,   const_b_scalar_nnz_view_t valsB_,
+			  KokkosKernels::Impl::ExecSpaceType MyEnumExecSpace_):
+				  _team_work_size(team_work_size_),
+				  _b_row_count(b_row_count),
+				  _b_col_begin(b_col_begin),
+				  _b_col_end(b_col_end),
+				  _b_fast_rowmap(row_mapB_fast),
+				  _b_pool_entries(b_pool_entries_),
+				  _b_pool_values(b_pool_values_),
+				  _rowmapB(rowmapB_),
+				  _entriesB(entriesB_),
+				  _valsB(valsB_), _MyEnumExecSpace(MyEnumExecSpace_){
+
+	  }
+
+
+	  KOKKOS_INLINE_FUNCTION
+	  void operator()(const team_member_t & teamMember) const {
+
+		  const nnz_lno_t team_row_begin = teamMember.league_rank() * _team_work_size;
+		  const nnz_lno_t team_row_end = KOKKOSKERNELS_MACRO_MIN(team_row_begin + _team_work_size, _b_row_count);
+		  nnz_lno_t *my_row_size = (nnz_lno_t *) (teamMember.team_shmem().get_shmem(teamMember.team_size() * sizeof (nnz_lno_t)));
+		  my_row_size += sizeof (nnz_lno_t) * teamMember.team_rank();
+
+
+
+		  Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, team_row_begin, team_row_end), [&] (const nnz_lno_t& row_index) {
+
+				  const size_type col_begin = _rowmapB[row_index];
+				  const nnz_lno_t left_work = _rowmapB[row_index + 1] - col_begin;
+
+				  size_type pool_begin = _b_fast_rowmap(row_index);
+				  size_type pool_end = _b_fast_rowmap(row_index + 1);
+				  Kokkos::single(Kokkos::PerThread(teamMember),[&] () {
+					  my_row_size[0] = 0;
+				  });
+				  Kokkos::parallel_for( Kokkos::ThreadVectorRange(teamMember, left_work),
+						  [&] (nnz_lno_t work_to_handle) {
+					  nnz_lno_t col =  _entriesB(col_begin + work_to_handle);
+					  if (col >= _b_col_begin && col < _b_col_end){
+						  nnz_lno_t wind = 0;
+						  switch (_MyEnumExecSpace){
+						  case KokkosKernels::Impl::Exec_CUDA:
+						  	  wind = Kokkos::atomic_fetch_add(my_row_size , 1);
+						  	  break;
+						  default:
+							  wind = my_row_size[0]++;
+							  break;
+						  }
+						  _b_pool_entries(pool_begin + wind) = col;
+						  _b_pool_values(pool_begin + wind) = _valsB(col_begin + work_to_handle);
+					  }
+
+				  });
+
+		  });
+	  }
+
+	  size_t team_shmem_size (int team_size) const {
+	    return team_size * sizeof (nnz_lno_t);
+	  }
+  };
+
+  template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
+            typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
+  template <typename fast_memory_row_view_t, typename fast_memory_lno_view_t, typename fast_memory_scalar_view_t>
+  void KokkosSPGEMM <HandleType, a_row_view_t_, a_lno_nnz_view_t_, a_scalar_nnz_view_t_,
+                     b_lno_row_view_t_, b_lno_nnz_view_t_, b_scalar_nnz_view_t_>::
+					 fill_fast_memory_bblock(
+					 		  int suggested_team_size, int suggested_vector_size,
+					 		  nnz_lno_t team_work_size_,
+					 		  nnz_lno_t b_col_begin, nnz_lno_t b_col_end,
+					 		  fast_memory_row_view_t row_mapB_fast,
+					 		  fast_memory_lno_view_t b_pool_entries_, fast_memory_scalar_view_t b_pool_values_,
+					  		  const_b_lno_row_view_t rowmapB_, const_b_lno_nnz_view_t entriesB_,   const_b_scalar_nnz_view_t valsB_){
+	  FastMemoryCopierBBlock <fast_memory_row_view_t, fast_memory_lno_view_t,  fast_memory_scalar_view_t> fmc(
+			  team_work_size_,
+			  row_mapB_fast.dimension_0()-1,
+			  b_col_begin, b_col_end,
+			  row_mapB_fast,
+			  b_pool_entries_, b_pool_values_,
+			  rowmapB_, entriesB_,   valsB_, this->MyEnumExecSpace) ;
+
+      Kokkos::parallel_for( team_policy_t((row_mapB_fast.dimension_0()-1) / team_work_size_ + 1 , suggested_team_size, suggested_vector_size), fmc);
+      MyExecSpace::fence();
+  }
 
   template <typename HandleType, typename a_row_view_t_, typename a_lno_nnz_view_t_, typename a_scalar_nnz_view_t_,
             typename b_lno_row_view_t_, typename b_lno_nnz_view_t_, typename b_scalar_nnz_view_t_  >
@@ -596,19 +1046,20 @@ void KokkosSPGEMM
 			size_type a_row_begin = row_mapA_(i);
 			nnz_lno_t row_size =  row_mapA_(i + 1) - a_row_begin;
 			for (nnz_lno_t j = 0; j < row_size; ++j){
-				nnz_lno_t a_col = entriesA_(j + a_row_begin);
+				nnz_lno_t b_row = entriesA_(j + a_row_begin);
+				//nnz_lno_t a_col = entriesA_(j + a_row_begin);
 
-				size_type b_row_begin = row_mapB_(a_col);
-				nnz_lno_t brow_size =  row_mapB_(a_col + 1) - b_row_begin;
+				//size_type b_row_begin = row_mapB_(a_col);
+				//nnz_lno_t brow_size =  row_mapB_(a_col + 1) - b_row_begin;
 
-				for (nnz_lno_t k = 0; k < brow_size; ++k){
-					nnz_lno_t b_col = entriesB_(k + b_row_begin);
-
-					if (row_to_pool_index(b_col) == -1)
+				//for (nnz_lno_t k = 0; k < brow_size; ++k){
+				//	nnz_lno_t b_col = entriesB_(k + b_row_begin);
+					//std::cout << "b_col:" << b_row << std::endl;
+					if (row_to_pool_index(b_row) == -1)
 					{
 						++num_alloc;
 
-						nnz_lno_t b_col_mod = b_col % num_slots;
+						nnz_lno_t b_col_mod = b_row % num_slots;
 
 						nnz_lno_t b_search_index = b_col_mod;
 						bool run_second_phase = false;
@@ -627,16 +1078,16 @@ void KokkosSPGEMM
 							while(pool_to_row_index[b_search_index] != -1){
 								b_search_index++;
 								if (b_search_index >= b_col_mod) {
-									std::cerr<< "CANNOT FIND A SPACE: " << i << " b_col:" << b_col << std::endl ;
+									std::cout<< "CANNOT FIND A SPACE: " << i << " b_row:" << b_row << std::endl ;
 
 									break;
 								}
 							}
 						}
-						pool_to_row_index[b_search_index] = b_col;
-						row_to_pool_index[b_col] = b_search_index;
+						pool_to_row_index[b_search_index] = b_row;
+						row_to_pool_index[b_row] = b_search_index;
 					}
-				}
+				//}
 			}
 		}
 		return num_alloc;
