@@ -152,6 +152,9 @@ public:
 	  is_owner_of_the_gs_handle = false;
 	  is_owner_of_the_spgemm_handle = false;
 	  //return *this;
+	  this->allocated_fast_memory = right_side_handle.allocated_fast_memory;
+	  this->p_allocated_fast_memory = right_side_handle.p_allocated_fast_memory;
+
   }
 
 
@@ -183,6 +186,7 @@ public:
   typedef typename nnz_lno_persistent_work_view_t::HostMirror nnz_lno_persistent_work_host_view_t; //Host view type
   typedef typename Kokkos::View<bool *, HandlePersistentMemorySpace> bool_persistent_view_t;
   typedef typename Kokkos::View<bool *, HandleTempMemorySpace> bool_temp_view_t;
+  typedef typename Kokkos::View<char *, HandleTempMemorySpace> fast_memory_view_t;
 
 private:
 
@@ -204,9 +208,11 @@ private:
   bool is_owner_of_the_gs_handle;
   bool is_owner_of_the_spgemm_handle;
 
-
 public:
 
+  fast_memory_view_t allocated_fast_memory;
+
+  char *p_allocated_fast_memory;
 
 
   KokkosKernelsHandle():
@@ -215,16 +221,37 @@ public:
       suggested_team_size(-1),
       my_exec_space(KokkosKernels::Impl::kk_get_exec_space_type<HandleExecSpace>()),
       use_dynamic_scheduling(true), KKVERBOSE(false),vector_size(-1), fast_memory_size(size_t(15) * 1024 * 1024 * 1024),
-	  is_owner_of_the_gc_handle(true), is_owner_of_the_gs_handle(true), is_owner_of_the_spgemm_handle(true){}
+	  is_owner_of_the_gc_handle(true), is_owner_of_the_gs_handle(true), is_owner_of_the_spgemm_handle(true), allocated_fast_memory(), p_allocated_fast_memory(){}
 
   ~KokkosKernelsHandle(){
     this->destroy_gs_handle();
     this->destroy_graph_coloring_handle();
     this->destroy_spgemm_handle();
   }
-  void set_fast_memory_size(size_t fast_memory_size_){
+  void set_fast_memory(size_t fast_memory_size_, bool allocate){
     this->fast_memory_size = fast_memory_size_;
+    if (allocate){
+    allocated_fast_memory = fast_memory_view_t("Allocated fast memory", fast_memory_size_);
+    p_allocated_fast_memory = allocated_fast_memory.data();
+    }
   }
+
+  void free_fast_memory(){
+	  allocated_fast_memory = fast_memory_view_t();
+	  p_allocated_fast_memory = NULL;
+  }
+
+  char *request_fast_memory(size_t fast_size){
+	  char * to_return = p_allocated_fast_memory;
+	  p_allocated_fast_memory += fast_size;
+	  return to_return;
+  }
+
+  //this has to be called in reverse order of request fast memory
+  void return_fast_memory(size_t fast_size){
+	  p_allocated_fast_memory -= fast_size;
+  }
+
   size_t get_fast_memory_size(){
     return this->fast_memory_size;
   }

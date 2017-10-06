@@ -83,10 +83,20 @@ namespace Experiment{
     //read a and b matrices and store them on slow or fast memory.
 
     if (params.a_mem_space == 1){
-      a_fast_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix<fast_crstmat_t>(a_mat_file);
+      std::cout << "reading left hand matrix" << std::endl;
+      a_fast_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix_view<fast_crstmat_t>(a_mat_file);
+      std::cout << "done with reading left hand matrix" << std::endl;
     }
     else {
-      a_slow_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix<slow_crstmat_t>(a_mat_file);
+      std::cout << "reading left hand matrix" << std::endl;
+
+      a_slow_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix_view<slow_crstmat_t>(a_mat_file);
+      std::cout << "done with reading left hand matrix" << std::endl;
+
+      KokkosKernels::Impl::print_1Dview(a_slow_crsmat.graph.row_map);
+      KokkosKernels::Impl::print_1Dview(a_slow_crsmat.graph.entries);
+      KokkosKernels::Impl::print_1Dview(a_slow_crsmat.values);
+
     }
 
 
@@ -96,12 +106,23 @@ namespace Experiment{
       b_slow_crsmat = a_slow_crsmat;
     }
     else if (params.b_mem_space == 1){
+        std::cout << "reading right hand matrix" << std::endl;
+
       if (b_mat_file == NULL) b_mat_file = a_mat_file;
-      b_fast_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix<fast_crstmat_t>(b_mat_file);
+      b_fast_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix_view<fast_crstmat_t>(b_mat_file);
+      std::cout << "done with reading right hand matrix" << std::endl;
+
     }
     else {
+        std::cout << "reading right hand matrix" << std::endl;
+
       if (b_mat_file == NULL) b_mat_file = a_mat_file;
-      b_slow_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix<slow_crstmat_t>(b_mat_file);
+      b_slow_crsmat = KokkosKernels::Impl::read_kokkos_crst_matrix_view<slow_crstmat_t>(b_mat_file);
+      std::cout << "done with reading right hand matrix" << std::endl;
+
+      KokkosKernels::Impl::print_1Dview(b_slow_crsmat.graph.row_map);
+      KokkosKernels::Impl::print_1Dview(b_slow_crsmat.graph.entries);
+      KokkosKernels::Impl::print_1Dview(b_slow_crsmat.values);
     }
 
     if (params.a_mem_space == 1){
@@ -116,19 +137,25 @@ namespace Experiment{
     					(a_fast_crsmat, b_fast_crsmat, params);
     				}
     				else {
+    					std::cerr << "No support for this memory case" << std::endl;
+
     					c_fast_crsmat = KokkosKernels::Experiment::run_experiment
     													<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, hbm_mem_space, sbm_mem_space>
     					    					(a_fast_crsmat, b_fast_crsmat, params);
+
     				}
     			}
     			else {
     				if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+    					/*
     					c_fast_crsmat =
     							KokkosKernels::Experiment::run_experiment
 								<myExecSpace, fast_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
     					(a_fast_crsmat, b_fast_crsmat, params);
+    					*/
     				}
+
     				else {
     					c_fast_crsmat =
     							KokkosKernels::Experiment::run_experiment
@@ -159,11 +186,13 @@ namespace Experiment{
 				}
 				else {
 					if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+    					/*
 						c_slow_crsmat =
 								KokkosKernels::Experiment::run_experiment
 								<myExecSpace, fast_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
 						(a_fast_crsmat, b_fast_crsmat, params);
+						*/
 					}
 					else {
 						c_slow_crsmat =
@@ -196,11 +225,12 @@ namespace Experiment{
     			}
     			else {
     				if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+/*
     					c_fast_crsmat =
     							KokkosKernels::Experiment::run_experiment
 								<myExecSpace, fast_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
-    					(a_fast_crsmat, b_slow_crsmat, params);
+    					(a_fast_crsmat, b_slow_crsmat, params);*/
     				}
     				else {
 
@@ -232,11 +262,13 @@ namespace Experiment{
 				}
 				else {
 					if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+/*
 						c_slow_crsmat =
 								KokkosKernels::Experiment::run_experiment
 								<myExecSpace, fast_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
 						(a_fast_crsmat, b_slow_crsmat, params);
+						*/
 					}
 					else {
 
@@ -272,10 +304,13 @@ namespace Experiment{
     			}
     			else {
     				if (params.slow_work_mem_space == 1){
+    					std::cerr << "No support for this memory case" << std::endl;
+/*
     					c_fast_crsmat =
     							KokkosKernels::Experiment::run_experiment
 								<myExecSpace, slow_crstmat_t,fast_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
     					(a_slow_crsmat, b_fast_crsmat, params);
+    					*/
     				}
     				else {
     					c_fast_crsmat =
@@ -307,11 +342,13 @@ namespace Experiment{
 				}
 				else {
 					if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+/*
 						c_slow_crsmat =
 								KokkosKernels::Experiment::run_experiment
 								<myExecSpace, slow_crstmat_t,fast_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
 						(a_slow_crsmat, b_fast_crsmat, params);
+						*/
 					}
 					else {
 
@@ -344,11 +381,12 @@ namespace Experiment{
     			}
     			else {
     				if (params.slow_work_mem_space == 1){
-
+/*
     					c_fast_crsmat =
     							KokkosKernels::Experiment::run_experiment
 								<myExecSpace, slow_crstmat_t,slow_crstmat_t,fast_crstmat_t, sbm_mem_space, hbm_mem_space>
     					(a_slow_crsmat, b_slow_crsmat, params);
+    					*/
     				}
     				else {
 
@@ -380,11 +418,12 @@ namespace Experiment{
     			}
     			else {
     				if (params.slow_work_mem_space == 1){
-
+    					std::cerr << "No support for this memory case" << std::endl;
+/*
     					c_slow_crsmat =
     							KokkosKernels::Experiment::run_experiment
 								<myExecSpace, slow_crstmat_t,slow_crstmat_t,slow_crstmat_t, sbm_mem_space, hbm_mem_space>
-    					(a_slow_crsmat, b_slow_crsmat, params);
+    					(a_slow_crsmat, b_slow_crsmat, params);*/
     				}
     				else {
 

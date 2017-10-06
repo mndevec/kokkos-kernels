@@ -54,7 +54,7 @@
 #include <Kokkos_Core.hpp>
 #include "KokkosKernels_SimpleUtils.hpp"
 #include <sys/stat.h>
-
+#include "stdio.h"
 namespace KokkosKernels{
 
 
@@ -747,6 +747,7 @@ void read_graph_bin(lno_t *nv, size_type *ne,size_type **xadj, lno_t **adj, scal
   myFile.close();
 }
 
+
 template <typename lno_t, typename size_type, typename scalar_t>
 void read_graph_crs(lno_t *nv, size_type *ne,size_type **xadj, lno_t **adj, scalar_t **ew, const char *filename){
 
@@ -1036,6 +1037,104 @@ void read_matrix(lno_t *nv, size_type *ne,size_type **xadj, lno_t **adj, scalar_
   }
 }
 
+
+template <typename lno_t, typename size_type,  typename size_view_t, typename lno_view_t, typename scalar_view_t >
+void read_graph_bin_view(lno_t *nv, size_type *ne,size_view_t &xadj, lno_view_t &adj, scalar_view_t &ew, const char *filename){
+  FILE *myFile=fopen(filename,"rb");
+  //std::ifstream myFile (filename, std::ios::in | std::ios::binary);
+  typedef typename scalar_view_t::value_type scalar_t;
+  fread(nv,sizeof(lno_t),1,myFile);
+
+  //myFile.read((char *) nv, sizeof(lno_t));
+  fread(ne,sizeof(size_type),1,myFile);
+  //myFile.read((char *) ne, sizeof(size_type));
+
+  std::cout << "allocating nv+1 xadj:" << *nv+1 << std::endl;
+  xadj = size_view_t("size_view" , *nv+1);
+  //md_malloc<size_type>(xadj, *nv+1);
+  std::cout << "allocating ne adj:" << *ne << std::endl;
+  adj = lno_view_t("lno_view_t" , *ne);
+  //md_malloc<lno_t>(adj, *ne);
+  std::cout << "allocating ne ew:" << *ne << std::endl;
+  ew = scalar_view_t("scalar_view_t" , *ne);
+  //md_malloc<scalar_t> (ew, *ne);
+  std::cout << "reading xadj:" << std::endl;
+
+  fread(xadj.data(),sizeof(size_type),(*nv + 1),myFile);
+  //myFile.read((char *) xadj.data(), sizeof(size_type) * (*nv + 1));
+  std::cout << "reading adj:" << std::endl;
+  fread(adj.data(),sizeof(lno_t),(*ne),myFile);
+
+  //myFile.read((char *) adj.data(), sizeof(lno_t) * (*ne));
+  std::cout << "reading ew:" << std::endl;
+  fread(ew.data(),sizeof(scalar_t),(*ne) ,myFile);
+
+  //myFile.read((char *) ew.data(), sizeof(scalar_t) * (*ne));
+  std::cout << "done read" << std::endl;
+  fclose(myFile);
+  //myFile.close();
+}
+
+template <typename lno_t, typename size_type,  typename size_view_t, typename lno_view_t, typename scalar_view_t >
+void read_matrix_view(lno_t *nv, size_type *ne,size_view_t &xadj, lno_view_t &adj, scalar_view_t &ew, const char *filename){
+
+  std::string strfilename(filename);
+  if (endswith(strfilename, ".mtx")){
+    std::cout << "read_matrix_view no mtx implementation  yet" << std::endl;
+  }
+
+  else if (endswith(strfilename, ".bin")){
+
+	  read_graph_bin_view(nv, ne,xadj, adj, ew, filename);
+  }
+
+  else if (endswith(strfilename, ".crs")){
+	  std::cout << "read_matrix_view no crs implementation  yet" << std::endl;
+
+  }
+
+  else {
+    throw std::runtime_error ("Reader is not available\n");
+  }
+}
+
+
+template <typename crsMat_t>
+crsMat_t read_kokkos_crst_matrix_view(const char * filename_){
+
+  typedef typename crsMat_t::StaticCrsGraphType graph_t;
+  typedef typename graph_t::row_map_type::non_const_type row_map_view_t;
+  typedef typename graph_t::entries_type::non_const_type   cols_view_t;
+  typedef typename crsMat_t::values_type::non_const_type values_view_t;
+
+  typedef typename row_map_view_t::value_type size_type;
+  typedef typename cols_view_t::value_type   lno_t;
+  typedef typename values_view_t::value_type scalar_t;
+
+  row_map_view_t rowmap_view;
+  cols_view_t columns_view;
+  values_view_t values_view;
+
+  lno_t nv, *adj;
+  size_type *xadj, nnzA;
+  scalar_t *values;
+  read_matrix_view(
+      &nv, &nnzA, rowmap_view, columns_view, values_view, filename_);
+
+
+
+  lno_t ncols = 0;
+  KokkosKernels::Impl::kk_view_reduce_max
+      <cols_view_t, typename crsMat_t::execution_space>(nnzA, columns_view, ncols);
+  ncols += 1;
+
+  graph_t static_graph (columns_view, rowmap_view);
+  crsMat_t crsmat("CrsMatrix", ncols, values_view, static_graph);
+
+  return crsmat;
+}
+
+
 template <typename crsMat_t>
 crsMat_t read_kokkos_crst_matrix(const char * filename_){
 
@@ -1055,27 +1154,38 @@ crsMat_t read_kokkos_crst_matrix(const char * filename_){
   read_matrix<lno_t, size_type, scalar_t>(
       &nv, &nnzA, &xadj, &adj, &values, filename_);
 
+
   row_map_view_t rowmap_view("rowmap_view", nv+1);
+  {
+	  typename row_map_view_t::HostMirror hr = Kokkos::create_mirror_view (rowmap_view);
+	  for (lno_t i = 0; i <= nv; ++i){
+		  hr(i) = xadj[i];
+	  }
+	  delete [] xadj;
+      Kokkos::deep_copy (rowmap_view , hr);
+  }
+
   cols_view_t columns_view("colsmap_view", nnzA);
+  {
+	  typename cols_view_t::HostMirror hc = Kokkos::create_mirror_view (columns_view);
+	    for (size_type i = 0; i < nnzA; ++i){
+	      hc(i) = adj[i];
+	    }
+	    delete [] adj;
+	    Kokkos::deep_copy (columns_view , hc);
+
+  }
   values_view_t values_view("values_view", nnzA);
 
-
   {
-    typename row_map_view_t::HostMirror hr = Kokkos::create_mirror_view (rowmap_view);
-    typename cols_view_t::HostMirror hc = Kokkos::create_mirror_view (columns_view);
     typename values_view_t::HostMirror hv = Kokkos::create_mirror_view (values_view);
 
-    for (lno_t i = 0; i <= nv; ++i){
-      hr(i) = xadj[i];
-    }
 
     for (size_type i = 0; i < nnzA; ++i){
-      hc(i) = adj[i];
       hv(i) = values[i];
     }
-    Kokkos::deep_copy (rowmap_view , hr);
-    Kokkos::deep_copy (columns_view , hc);
     Kokkos::deep_copy (values_view , hv);
+    delete [] values;
   }
 
   lno_t ncols = 0;
@@ -1085,7 +1195,7 @@ crsMat_t read_kokkos_crst_matrix(const char * filename_){
   
   graph_t static_graph (columns_view, rowmap_view);
   crsMat_t crsmat("CrsMatrix", ncols, values_view, static_graph);
-  delete [] xadj; delete [] adj; delete [] values;
+
   return crsmat;
 }
 

@@ -43,13 +43,14 @@
 #include <iostream>
 #include "KokkosKernels_config.h"
 #if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
-    defined(KOKKOSKERNELS_INST_OFFSET_INT) && \
+    defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
     defined(KOKKOSKERNELS_INST_ORDINAL_INT)
 #include "KokkosKernels_IOUtils.hpp"
 #include "KokkosSparse_multimem_spgemm.hpp"
 
 
-#define SIZE_TYPE int
+
+#define SIZE_TYPE size_t
 #define INDEX_TYPE int
 #define SCALAR_TYPE double
 //double
@@ -280,6 +281,16 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
       else if ( 0 == strcasecmp( argv[i] , "MULTIMEMABLOCK" ) ) {
     	  params.algorithm = 24;
       }
+      else if ( 0 == strcasecmp( argv[i] , "CACHECACHE" ) ) {
+    	  params.algorithm = 25;
+      }
+      else if ( 0 == strcasecmp( argv[i] , "CACHEBBLOCK" ) ) {
+    	  params.algorithm = 26;
+      }
+      else if ( 0 == strcasecmp( argv[i] , "CACHEABLOCK" ) ) {
+    	  params.algorithm = 27;
+      }
+
       else {
         std::cerr << "Unrecognized command line argument #" << i << ": " << argv[i] << std::endl ;
         print_options();
@@ -319,6 +330,7 @@ int main (int argc, char ** argv){
 
     Kokkos::OpenMP::initialize( params.use_openmp );
 	  Kokkos::OpenMP::print_configuration(std::cout);
+
 #ifdef KOKKOSKERNELS_INST_MEMSPACE_HBWSPACE
     KokkosKernels::Experiment::run_multi_mem_spgemm
     <SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, Kokkos::OpenMP, Kokkos::Experimental::HBWSpace, Kokkos::HostSpace>(

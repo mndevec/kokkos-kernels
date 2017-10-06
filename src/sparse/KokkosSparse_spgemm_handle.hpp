@@ -63,7 +63,9 @@ namespace KokkosSparse{
 enum SPGEMMAlgorithm{SPGEMM_DEFAULT, SPGEMM_DEBUG, SPGEMM_SERIAL,
                       SPGEMM_CUSPARSE,  SPGEMM_CUSP, SPGEMM_MKL, SPGEMM_MKL2PHASE, SPGEMM_VIENNA,
                      //SPGEMM_KK1, SPGEMM_KK2, SPGEMM_KK3, SPGEMM_KK4,
-                      SPGEMM_KK_MULTIMEM, SPGEMM_KK_OUTERMULTIMEM, SPGEMM_KK_MULTIMEMCACHE, SPGEMM_KK_MULTIMEMBBLOCK, SPGEMM_KK_MULTIMEMABLOCK,
+                      SPGEMM_KK_MULTIMEM, SPGEMM_KK_OUTERMULTIMEM,
+					  SPGEMM_KK_MULTIMEMCACHE, SPGEMM_KK_MULTIMEMBBLOCK, SPGEMM_KK_MULTIMEMABLOCK,
+					  SPGEMM_KK_CACHECACHE, SPGEMM_KK_CACHEBBLOCK, SPGEMM_KK_CACHEABLOCK,
                       SPGEMM_KK_TRIANGLE_AI, //SPGEMM_KK_TRIANGLE_DEFAULT, SPGEMM_KK_TRIANGLE_MEM, SPGEMM_KK_TRIANGLE_DENSE,
                       SPGEMM_KK_TRIANGLE_IA_UNION, //SPGEMM_KK_TRIANGLE_DEFAULT_IA_UNION, SPGEMM_KK_TRIANGLE_MEM_IA_UNION, SPGEMM_KK_TRIANGLE_DENSE_IA_UNION,
                       SPGEMM_KK_TRIANGLE_IA,//SPGEMM_KK_TRIANGLE_IA_DEFAULT, SPGEMM_KK_TRIANGLE_IA_MEM, SPGEMM_KK_TRIANGLE_IA_DENSE,
@@ -242,6 +244,7 @@ private:
   std::vector<row_lno_persistent_work_view_t> b_rowmap_pointers;
 
   nnz_lno_t max_b_row_size, num_rows_of_in_fast_memory;
+  size_type max_b_size_in_fast_memory;
 
   void set_min_hash_size_scale(int scale){
     min_hash_size_scale = scale;
@@ -435,7 +438,7 @@ private:
     multi_color_scale(1), mkl_sort_option(7), calculate_read_write_cost(false),
 	coloring_input_file(""),
 	coloring_output_file(""), min_hash_size_scale(1),
-	pool_reverse_pointers(),  multi_mem_ranges(), max_b_row_size(0), num_rows_of_in_fast_memory(0),
+	pool_reverse_pointers(),  multi_mem_ranges(), max_b_row_size(0), num_rows_of_in_fast_memory(0), max_b_size_in_fast_memory(0),
     persistent_a_xadj(), persistent_b_xadj(), persistent_a_adj(), persistent_b_adj(),
     mkl_keep_output(true),
     mkl_convert_to_1base(true), is_compression_single_step(true)

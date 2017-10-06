@@ -741,7 +741,28 @@ private:
           KokkosKernels::Impl::ExecSpaceType my_exec_space);
 
   template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+      void KokkosSPGEMM_numeric_cache_ablock_hash(
+            c_row_view_t rowmapC_,
+            c_lno_nnz_view_t entriesC_,
+            c_scalar_nnz_view_t valuesC_,
+            KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+    void KokkosSPGEMM_numeric_cache_bblock_hash(
+          c_row_view_t rowmapC_,
+          c_lno_nnz_view_t entriesC_,
+          c_scalar_nnz_view_t valuesC_,
+          KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
     void KokkosSPGEMM_numeric_multimem_bblock_hash(
+          c_row_view_t rowmapC_,
+          c_lno_nnz_view_t entriesC_,
+          c_scalar_nnz_view_t valuesC_,
+          KokkosKernels::Impl::ExecSpaceType my_exec_space);
+
+  template <typename c_row_view_t, typename c_lno_nnz_view_t, typename c_scalar_nnz_view_t>
+    void KokkosSPGEMM_numeric_cache_cache_hash(
           c_row_view_t rowmapC_,
           c_lno_nnz_view_t entriesC_,
           c_scalar_nnz_view_t valuesC_,

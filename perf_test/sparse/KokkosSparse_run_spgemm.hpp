@@ -191,7 +191,6 @@ crsMat_t3 run_experiment(
   kh.set_suggested_team_size(team_size);
   kh.set_suggested_vector_size(vector_size);
 
-  kh.set_fast_memory_size(fast_memory_size);
 
   if (use_dynamic_scheduling){
     kh.set_dynamic_scheduling(true);
@@ -206,6 +205,7 @@ crsMat_t3 run_experiment(
 
   std::cout << "m:" << m << " n:" << n << " k:" << k << std::endl;
   if (n < crsMat.numCols()){
+
     std::cout << "left.numCols():" << crsMat.numCols() << " right.numRows():" << crsMat2.numRows() << std::endl;
     exit(1);
   }
@@ -279,6 +279,8 @@ crsMat_t3 run_experiment(
     Ccrsmat_ref = Ccrsmat;
   }
 
+  bool allocate_scratch_memory = false;
+
   for (int i = 0; i < repeat; ++i){
   switch (algorithm){
   case 1:
@@ -331,18 +333,38 @@ crsMat_t3 run_experiment(
     break;
   case 22:
     kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMCACHE);
+    allocate_scratch_memory = true;
     break;
   case 23:
     kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMBBLOCK);
+    allocate_scratch_memory = true;
     break;
   case 24:
     kh.create_spgemm_handle(SPGEMM_KK_MULTIMEMABLOCK);
+    allocate_scratch_memory = true;
+    break;
+  case 25:
+    kh.create_spgemm_handle(SPGEMM_KK_CACHECACHE);
+    break;
+  case 26:
+    kh.create_spgemm_handle(SPGEMM_KK_CACHEBBLOCK);
+    allocate_scratch_memory = true;
+    break;
+  case 27:
+    kh.create_spgemm_handle(SPGEMM_KK_CACHEABLOCK);
     break;
 
 
   default:
     kh.create_spgemm_handle(SPGEMM_KK_MEMORY);
     break;
+  }
+  std::cout << "fast_memory_size_:" << fast_memory_size * sizeof(char) / 1024. / 1024./ 1024. << std::endl;
+
+  Kokkos::Impl::Timer timer1;
+  kh.set_fast_memory(fast_memory_size, allocate_scratch_memory);
+  if (allocate_scratch_memory){
+	  std::cout << "Fast Memory Alloc Time:" << timer1.seconds() << std::endl;
   }
 
   kh.get_spgemm_handle()->set_multi_color_scale(multi_color_scale);
@@ -365,7 +387,7 @@ crsMat_t3 run_experiment(
     entriesC = lno_nnz_view_t ("");
     valuesC = scalar_view_t ("");
 
-    Kokkos::Impl::Timer timer1;
+    timer1.reset();
     spgemm_symbolic (
         &kh,
         m,
@@ -416,7 +438,11 @@ crsMat_t3 run_experiment(
     << " symbolic_time:" << symbolic_time
     << " numeric_time:" << numeric_time << std::endl;
 
-
+    timer1.reset();
+    if (allocate_scratch_memory){
+      kh.free_fast_memory();
+  	  std::cout << "Fast Memory Free Time:" << timer1.seconds() << std::endl;
+    }
 
   }
 

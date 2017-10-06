@@ -671,6 +671,7 @@ struct KokkosSPGEMM
       max_num_results_in_row);
       //set max.
       if (overal_max < max_num_results_in_row) {
+    	  //std::cout << "row_index:" << row_index << " overal_max:" << overal_max << " max_num_results_in_row:" << max_num_results_in_row << std::endl;
         overal_max = max_num_results_in_row;
       }
     });

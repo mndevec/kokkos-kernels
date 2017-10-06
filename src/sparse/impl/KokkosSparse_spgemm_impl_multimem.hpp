@@ -59,6 +59,7 @@ void KokkosSPGEMM
       c_row_view_t &rowmapC_,
       c_lno_nnz_view_t &entriesC_,
       c_scalar_nnz_view_t &valuesC_){
+	  Kokkos::Impl::Timer timer1, timer2;
 
     //get the algorithm and execution space.
     //SPGEMMAlgorithm spgemm_algorithm = this->handle->get_spgemm_handle()->get_algorithm_type();
@@ -68,6 +69,7 @@ void KokkosSPGEMM
       std::cout << "MULTIMEM Numeric PHASE" << std::endl;
     }
 
+    /*
     if (spgemm_algorithm == SPGEMM_KK_SPEED)
     {
       this->KokkosSPGEMM_numeric_speed(rowmapC_, entriesC_, valuesC_, my_exec_space);
@@ -83,14 +85,25 @@ void KokkosSPGEMM
     else if (spgemm_algorithm == SPGEMM_KK_OUTERMULTIMEM ){
       this->KokkosSPGEMM_numeric_outer(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
-    else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMCACHE ){
+    else
+    */if (spgemm_algorithm == SPGEMM_KK_MULTIMEMCACHE  ){
     	this->KokkosSPGEMM_numeric_multimem_cache_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
-    else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMBBLOCK){
+    else if (spgemm_algorithm == SPGEMM_KK_CACHECACHE ){
+    	this->KokkosSPGEMM_numeric_cache_cache_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
+    }
+    else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMBBLOCK ){
     	this->KokkosSPGEMM_numeric_multimem_bblock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
+    }
+    else if (spgemm_algorithm == SPGEMM_KK_CACHEBBLOCK  ){
+    	this->KokkosSPGEMM_numeric_cache_bblock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
     else if (spgemm_algorithm == SPGEMM_KK_MULTIMEMABLOCK){
     	this->KokkosSPGEMM_numeric_multimem_ablock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
+
+    }
+    else if (spgemm_algorithm == SPGEMM_KK_CACHEABLOCK  ){
+    	this->KokkosSPGEMM_numeric_cache_ablock_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
     }
     else {
       this->KokkosSPGEMM_numeric_hash(rowmapC_, entriesC_, valuesC_, my_exec_space);
@@ -194,12 +207,15 @@ void KokkosSPGEMM
    timer1.reset();
    switch (this->spgemm_algorithm){
    case SPGEMM_KK_MULTIMEMCACHE:
+   case SPGEMM_KK_CACHECACHE:
 	   this->prepare_multi_mem_cache();
 	   break;
    case SPGEMM_KK_MULTIMEMBBLOCK:
+   case SPGEMM_KK_CACHEBBLOCK:
 	   this->prepare_multi_mem_block_b();
 	   break;
    case SPGEMM_KK_MULTIMEMABLOCK:
+   case SPGEMM_KK_CACHEABLOCK:
    	   this->prepare_multi_mem_block_a();
    	   break;
    default:
@@ -298,6 +314,7 @@ void KokkosSPGEMM
 		size_type size_on_the_left = 0;
 
 
+		size_type max_required_size = 0;
 		for (int counter = 0; ; ++counter)
 		{
 			nnz_lno_t b_row_begin_to_test = multi_mem_b_column_ranges[counter];
@@ -367,13 +384,15 @@ void KokkosSPGEMM
 				std::cout << "\t\tPart:" << counter << " col_end_to_test:" << b_row_end_to_test << " b_size_for_the_range:" << b_size_for_the_range << std::endl;
 				std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
 			}
+			if (this->row_mapB(b_row_end_to_test) - size_on_the_left > max_required_size) max_required_size = this->row_mapB(b_row_end_to_test) - size_on_the_left;
 			size_on_the_left = this->row_mapB(b_row_end_to_test);
-
 			multi_mem_b_column_ranges.push_back(b_row_end_to_test);
+
 			if (b_row_end_to_test == this->b_col_cnt) break;
 		}
 
 		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		this->handle->get_spgemm_handle()->max_b_size_in_fast_memory = max_required_size;
 		/*
 		this->handle->get_spgemm_handle()->pool_reverse_pointers = b_rowmap_entries;
 		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
@@ -433,6 +452,7 @@ void KokkosSPGEMM
 
 		size_type size_on_the_left = 0;
 
+		size_type max_required_size = 0;
 
 		for (int counter = 0; ; ++counter)
 		{
@@ -514,6 +534,7 @@ void KokkosSPGEMM
 				}
 			}
 
+			if (b_size_for_the_range > max_required_size) max_required_size = b_size_for_the_range;
 
 			if (KOKKOSKERNELS_VERBOSE){
 				std::cout << "\t\tPart:" << counter << " col_end_to_test:" << col_end_to_test << " b_size_for_the_range:" << b_size_for_the_range << std::endl;
@@ -527,6 +548,8 @@ void KokkosSPGEMM
 
 		this->handle->get_spgemm_handle()->b_rowmap_pointers = b_rowmap_entries;
 		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
+		this->handle->get_spgemm_handle()->max_b_size_in_fast_memory = max_required_size;
+
 		/*
 		this->handle->get_spgemm_handle()->pool_reverse_pointers = b_rowmap_entries;
 		this->handle->get_spgemm_handle()->multi_mem_ranges = multi_mem_b_column_ranges;
@@ -548,17 +571,25 @@ void KokkosSPGEMM
 	    //now for multilevel memory algorithm, we want to setup how we will proceed the computation.
 	    //1- FM = get fast memory size.
 	    size_t fast_memory_size = this->handle->get_fast_memory_size();
-	    //2- get maximum row size of B.
-	    nnz_lno_t max_brow_size = 0;
-	    KokkosKernels::Impl::view_reduce_maxsizerow<const_b_lno_row_view_t, MyExecSpace>(n, row_mapB, max_brow_size);
-	    MyExecSpace::fence();
-	    //2- get maximum row size of A.
-	    nnz_lno_t max_arow_size = 0;
-	    KokkosKernels::Impl::view_reduce_maxsizerow<const_a_lno_row_view_t, MyExecSpace>(n, row_mapA, max_arow_size);
-	    MyExecSpace::fence();
+
 
 	    if (KOKKOSKERNELS_VERBOSE){
 	    	std::cout << "\t\tfast_memory_size:" << fast_memory_size << std::endl;
+	    }
+	    //2- get maximum row size of B.
+	    size_type max_brow_size = 0;
+	    KokkosKernels::Impl::view_reduce_maxsizerow<const_b_lno_row_view_t, MyExecSpace>(this->b_row_cnt, row_mapB, max_brow_size);
+	    MyExecSpace::fence();
+	    //2- get maximum row size of A.
+	    //std::cout << "\t\t rowmap a"; KokkosKernels::Impl::print_1Dview(row_mapA);
+
+	    //2- get maximum row size of A.
+	    //std::cout << "\t\t rowmap b"; KokkosKernels::Impl::print_1Dview(row_mapB);
+	    size_type max_arow_size = 0;
+	    KokkosKernels::Impl::view_reduce_maxsizerow<const_a_lno_row_view_t, MyExecSpace>(this->a_row_cnt, row_mapA, max_arow_size);
+	    MyExecSpace::fence();
+
+	    if (KOKKOSKERNELS_VERBOSE){
 	    	std::cout << "\t\tmax_brow_size:" << max_brow_size << std::endl;
 	    	std::cout << "\t\tmax_arow_size:" << max_arow_size << std::endl;
 	    }
@@ -571,6 +602,8 @@ void KokkosSPGEMM
 	    // (FM - br ) / pool_chunk_size  == fastrows that can fit into fast memory.
 
 	    nnz_lno_t num_rows_of_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)))/ max_brow_size;
+
+	    num_rows_of_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(num_rows_of_in_fast_memory, b_row_cnt);
 
 
 
@@ -588,32 +621,67 @@ void KokkosSPGEMM
 
 	    while (!alldone)
 	    {
-
-	    	//std::cout << "counter:" << counter << std::endl;
+#if 0
+	    	std::cout << "counter:" << counter << std::endl;
+#endif
 	        nnz_lno_t available_fast_memory_row_count = num_rows_of_in_fast_memory;
 	    	nnz_lno_t min_space_for_a_rows = available_fast_memory_row_count / max_arow_size;
 
 
-	    	nnz_lno_t current_a_row_end = KOKKOSKERNELS_MACRO_MIN(current_a_row_begin + min_space_for_a_rows, a_row_cnt);
+	    	nnz_lno_t current_a_row_end = 0; //KOKKOSKERNELS_MACRO_MIN(current_a_row_begin + min_space_for_a_rows, a_row_cnt);
 
 	    	nnz_lno_persistent_work_view_t row_to_pool_index(Kokkos::ViewAllocateWithoutInitializing("b_row_to_pool"), b_row_cnt);
 	    	nnz_lno_persistent_work_view_t pool_to_row_index(Kokkos::ViewAllocateWithoutInitializing("pool_to_brow"), num_rows_of_in_fast_memory);
 	    	Kokkos::deep_copy(row_to_pool_index, -1);
 	    	Kokkos::deep_copy(pool_to_row_index, -1);
 	    	MyExecSpace::fence();
+
+
+			nnz_lno_t num_alloc = 0;
+#if 0
+    		std::cout << "current_a_row_begin:" << current_a_row_begin << " a_row_cnt:" << a_row_cnt << " num_alloc:" << num_alloc
+    				<< " available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
+#endif
+    		bool space_available_in_fast_memory = true;
+			for (current_a_row_end = current_a_row_begin; current_a_row_end < a_row_cnt ; ++current_a_row_end){
+				size_type a_row_begin = row_mapA(current_a_row_end);
+				nnz_lno_t row_size =  row_mapA(current_a_row_end + 1) - a_row_begin;
+				for (nnz_lno_t j = 0; j < row_size; ++j){
+					nnz_lno_t b_row = entriesA(j + a_row_begin);
+					if (row_to_pool_index(b_row) == -1)
+					{
+						if (num_alloc >= num_rows_of_in_fast_memory){
+							space_available_in_fast_memory = false;
+							break;
+						}
+						pool_to_row_index[num_alloc] = b_row;
+						row_to_pool_index[b_row] = num_alloc++;
+					}
+
+				}
+				if (!space_available_in_fast_memory) break;
+			}
+			current_a_row_begin = current_a_row_end;
+#if 0
+
+			std::cout << "current_a_row_begin:" << current_a_row_begin << std::endl;
+			std::cout << "num_alloc:" << num_alloc << std::endl;
+#endif
+	    	/*
 	    	while (min_space_for_a_rows > 0){
-	    		//std::cout << "current_a_row_begin:" << current_a_row_begin << " current_a_row_end:" << current_a_row_end
-	    		//			<< " available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
+
+	    		std::cout << "current_a_row_begin:" << current_a_row_begin << " current_a_row_end:" << current_a_row_end
+	    				<< " available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
 
 	    		nnz_lno_t allocated_row_count = fill_rows_of_pool_sequential(
 	    				current_a_row_begin, current_a_row_end,
 						row_mapA, entriesA, row_mapB, entriesB,
 						row_to_pool_index, pool_to_row_index);
 
-	    		//std::cout << "allocated_row_count:" << allocated_row_count << std::endl;
+	    		std::cout << "allocated_row_count:" << allocated_row_count << std::endl;
 
 	    		available_fast_memory_row_count -=  allocated_row_count;
-	    		//std::cout << "available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
+	    		std::cout << "available_fast_memory_row_count:" << available_fast_memory_row_count << std::endl;
 	    		if (current_a_row_end == a_row_cnt){
 	    			alldone = true;
 	    			break;
@@ -623,6 +691,7 @@ void KokkosSPGEMM
 	    		current_a_row_end += min_space_for_a_rows;
 	    		current_a_row_end = KOKKOSKERNELS_MACRO_MIN(current_a_row_end, a_row_cnt);
 	    	}
+	    	*/
 
 
 
@@ -633,19 +702,26 @@ void KokkosSPGEMM
 	    	}
 	    	else {
 	    		//but order it to minimize the copy by checking the previous state of the fast memory.
+
+		    	if (KOKKOSKERNELS_VERBOSE){
+		    		std::cout << "\t\tSTEP:" << counter - 1  << " ";
+		    	}
 	    		maximize_overlap(num_rows_of_in_fast_memory, row_to_pool_index, pool_to_row_index, previous_row_to_pool_index);
 	    		pool_reverse_pointers.push_back(pool_to_row_index);
 
 	    	}
-	    	/*
+
+#if 0
 	    	if (KOKKOSKERNELS_VERBOSE){
 	    		std::cout << "\t\tPOOL AND ROWS FOR STEP:" << counter << std::endl;
 	    		std::cout << "\t\t"; KokkosKernels::Impl::print_1Dview(row_to_pool_index);
 	    		std::cout << "\t\t"; KokkosKernels::Impl::print_1Dview(pool_to_row_index);
 	    		std::cout << "\t\t#######################" << std::endl;
 	    	}
-	    	*/
+#endif
+
 	    	previous_row_to_pool_index = row_to_pool_index;
+	    	if (current_a_row_end >= a_row_cnt) alldone = true;
 	    }
 
 	    this->handle->get_spgemm_handle()->pool_reverse_pointers = pool_reverse_pointers;

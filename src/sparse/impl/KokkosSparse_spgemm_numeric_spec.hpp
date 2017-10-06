@@ -298,6 +298,10 @@ struct SPGEMM_NUMERIC<KernelHandle,
     case SPGEMM_KK_MULTIMEMCACHE:
     case SPGEMM_KK_MULTIMEMBBLOCK:
     case SPGEMM_KK_MULTIMEMABLOCK:
+
+    case SPGEMM_KK_CACHECACHE:
+    case SPGEMM_KK_CACHEBBLOCK:
+    case SPGEMM_KK_CACHEABLOCK:
     {
       KokkosSPGEMM
       <KernelHandle,

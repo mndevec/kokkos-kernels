@@ -50,7 +50,7 @@
 
 
 int main (int argc, char* argv[]){
-  typedef int size_type;
+  typedef size_t size_type;
   typedef int idx;
   typedef double wt;
 
