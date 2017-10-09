@@ -222,54 +222,54 @@ struct KokkosSPGEMM
       nnz_lno_t globally_used_hash_count = 0;
       nnz_lno_t used_hash_sizes = 0;
 
-      std::cout << "row_index:" << row_index  << std::endl;
+      //std::cout << "row_index:" << row_index  << std::endl;
       const size_type c_row_begin = rowmapC[row_index];
-      std::cout << "c_row_begin:" << c_row_begin  << std::endl;
+      //std::cout << "c_row_begin:" << c_row_begin  << std::endl;
       const size_type c_row_end = rowmapC[row_index + 1];
-      std::cout << "c_row_end:" << c_row_end  << std::endl;
+      //std::cout << "c_row_end:" << c_row_end  << std::endl;
 
       const nnz_lno_t global_memory_hash_size = nnz_lno_t(c_row_end - c_row_begin);
-      std::cout << "global_memory_hash_size:" << c_row_end  << std::endl;
+      //std::cout << "global_memory_hash_size:" << c_row_end  << std::endl;
 
       hm2.max_value_size = global_memory_hash_size;
       hm2.keys = pEntriesC + c_row_begin;
       hm2.values = pvaluesC + c_row_begin;
 
       const size_type col_begin = row_mapA[row_index];
-      std::cout << "col_begin:" << col_begin  << std::endl;
+      //std::cout << "col_begin:" << col_begin  << std::endl;
 
       const nnz_lno_t left_work = row_mapA[row_index + 1] - col_begin;
-      std::cout << "left_work:" << left_work  << std::endl;
+      //std::cout << "left_work:" << left_work  << std::endl;
 
       for ( nnz_lno_t ii = 0; ii < left_work; ++ii){
         size_type a_col = col_begin + ii;
-        std::cout << "a_col:" << left_work  << std::endl;
+        //std::cout << "a_col:" << left_work  << std::endl;
 
         nnz_lno_t rowB = entriesA[a_col];
-        std::cout << "rowB:" << rowB  << std::endl;
+        //std::cout << "rowB:" << rowB  << std::endl;
 
         scalar_t valA = valuesA[a_col];
-        std::cout << "valA:" << valA  << std::endl;
+        //std::cout << "valA:" << valA  << std::endl;
 
 
         size_type rowBegin = row_mapB(rowB);
-        std::cout << "rowBegin:" << rowBegin  << std::endl;
+        //std::cout << "rowBegin:" << rowBegin  << std::endl;
 
         nnz_lno_t left_workB = row_mapBends(rowB) - rowBegin;
-        std::cout << "left_workB:" << left_workB  << std::endl;
+        //std::cout << "left_workB:" << left_workB  << std::endl;
 
         for ( nnz_lno_t i = 0; i < left_workB; ++i){
           const size_type adjind = i + rowBegin;
-          std::cout << "adjind:" << adjind  << std::endl;
+          //std::cout << "adjind:" << adjind  << std::endl;
 
           nnz_lno_t b_col_ind = entriesB[adjind];
-          std::cout << "b_col_ind:" << b_col_ind  << std::endl;
+          //std::cout << "b_col_ind:" << b_col_ind  << std::endl;
 
           scalar_t b_val = valuesB[adjind] * valA;
-          std::cout << "b_val:" << b_val  << std::endl;
+          //std::cout << "b_val:" << b_val  << std::endl;
 
           nnz_lno_t hash = b_col_ind & pow2_hash_func;
-          std::cout << "hash:" << hash  << std::endl;
+          //std::cout << "hash:" << hash  << std::endl;
 
           //this has to be a success, we do not need to check for the success.
           //int insertion =
@@ -283,13 +283,13 @@ struct KokkosSPGEMM
       }
 
       if (_c_write){
-          std::cout << "_c_write row_index:" << row_index  << std::endl;
+          //std::cout << "_c_write row_index:" << row_index  << std::endl;
 
     	  rowmapC(row_index) += used_hash_sizes;
       }
       for (nnz_lno_t i = 0; i < globally_used_hash_count; ++i){
         nnz_lno_t dirty_hash = globally_used_hash_indices[i];
-        std::cout << "dirty_hash:" << dirty_hash << std::endl;
+        //std::cout << "dirty_hash:" << dirty_hash << std::endl;
 
         hm2.hash_begins[dirty_hash] = -1;
       }
@@ -1331,7 +1331,7 @@ void
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
 	  }
-	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(max_num_entries_in_fast_memory, this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
+	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(size_t (max_num_entries_in_fast_memory), this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
 
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tafter adjustment max_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
@@ -1588,7 +1588,7 @@ void
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
 	  }
-	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(max_num_entries_in_fast_memory, this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
+	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(size_t(max_num_entries_in_fast_memory), this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
 
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tafter adjustment max_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
@@ -2600,12 +2600,12 @@ void
       size_t fast_memory_size = this->handle->get_fast_memory_size();
       size_t b_row_map_sizes = sizeof(size_type) * (this->b_row_cnt + 1);
 	  size_t available_size_for_b = fast_memory_size - b_row_map_sizes;
-	  nnz_lno_t max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
+	  size_type max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
 
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tmax_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;
 	  }
-	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(max_num_entries_in_fast_memory, this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
+	  max_num_entries_in_fast_memory = KOKKOSKERNELS_MACRO_MIN(size_t(max_num_entries_in_fast_memory), this->handle->get_spgemm_handle()->max_b_size_in_fast_memory);
 
 	  if (KOKKOSKERNELS_VERBOSE){
 	    std::cout << "\t\tafter adjustment max_num_entries_in_fast_memory:" << max_num_entries_in_fast_memory << std::endl;

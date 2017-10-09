@@ -290,7 +290,7 @@ void KokkosSPGEMM
 
 		// (FM - br ) / pool_chunk_size  == fastrows that can fit into fast memory.
 
-		nnz_lno_t max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
+		size_type max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
 
 		size_type overall_b_size = this->entriesB.dimension_0();
 		double b_ratio = static_cast <double> (max_num_entries_in_fast_memory) / overall_b_size ;
@@ -425,7 +425,7 @@ void KokkosSPGEMM
 
 		// (FM - br ) / pool_chunk_size  == fastrows that can fit into fast memory.
 
-		nnz_lno_t max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
+		size_type max_num_entries_in_fast_memory = (available_size_for_b / (sizeof (nnz_lno_t) + sizeof(scalar_t)));
 
 		size_type overall_b_size = this->entriesB.dimension_0();
 		double b_ratio = static_cast <double> (max_num_entries_in_fast_memory) / overall_b_size ;
