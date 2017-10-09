@@ -641,6 +641,12 @@ public:
             typename pool_memory_space>
   struct StructureC;
 
+  template <typename a_row_view_t, typename a_nnz_view_t,
+              typename b_original_row_view_t,
+              typename b_compressed_row_view_t, typename b_nnz_view_t,
+              typename c_row_view_t, //typename nnz_lno_temp_work_view_t,
+              typename pool_memory_space>
+    struct StructureC_NC;
 
 
   template <typename a_row_view_t, typename a_nnz_view_t,
@@ -715,6 +721,24 @@ private:
       c_row_view_t rowmapC,
       nnz_lno_t maxNumRoughNonzeros
   );
+
+  template <typename a_r_view_t, typename a_nnz_view_t,
+              typename b_original_row_view_t,
+              typename b_compressed_row_view_t, typename b_nnz_view_t,
+              typename c_row_view_t>
+  void symbolic_c_no_compression(
+      nnz_lno_t m,
+      a_r_view_t row_mapA_,
+      a_nnz_view_t entriesA_,
+
+      b_original_row_view_t old_row_mapB,
+      b_compressed_row_view_t row_mapB_,
+      b_nnz_view_t entriesSets,
+
+      c_row_view_t rowmapC,
+      nnz_lno_t maxNumRoughNonzeros
+  );
+
 
   //multilevel memory spgemm functions
   template <typename row_to_pool_view_t, typename pool_to_row_view_t>

@@ -166,6 +166,13 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
     else if ( 0 == strcasecmp( argv[i] , "compression2step" ) ) {
       params.compression2step =  true ;
     }
+    else if ( 0 == strcasecmp( argv[i] , "compression" ) ) {
+    	int compress = atoi( argv[++i]);
+    	if (compress)
+    		params.apply_compression =  true;
+    	else
+    		params.apply_compression =  false;
+    }
     else if ( 0 == strcasecmp( argv[i] , "mklsort" ) ) {
       params.mkl_sort_option = atoi( argv[++i] ) ;
     }

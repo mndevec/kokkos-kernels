@@ -372,6 +372,7 @@ crsMat_t3 run_experiment(
   kh.get_spgemm_handle()->mkl_convert_to_1base = false;
   kh.get_spgemm_handle()->set_read_write_cost_calc (calculate_read_write_cost);
   kh.get_spgemm_handle()->set_compression_steps(!params.compression2step);
+  kh.get_spgemm_handle()->set_compression(params.apply_compression);
 
   if (coloring_input_file){
     kh.get_spgemm_handle()->coloring_input_file = /*std::string(&spgemm_step) + "_" +*/ std::string(coloring_input_file);
