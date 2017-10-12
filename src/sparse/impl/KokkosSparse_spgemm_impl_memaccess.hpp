@@ -307,16 +307,16 @@ void KokkosSPGEMM
   int write_type = 0;//0 -- KKMEM, 1-KKSPEED, 2- KKCOLOR 3-KKMULTICOLOR 4-KKMULTICOLOR2
   SPGEMMAlgorithm spgemm_algorithm = this->handle->get_spgemm_handle()->get_algorithm_type();
 
-  if (spgemm_algorithm == KokkosKernels::Experimental::Graph::SPGEMM_KK_COLOR){
+  if (spgemm_algorithm == KokkosSparse::SPGEMM_KK_COLOR){
     write_type = 2;
   }
-  else if (spgemm_algorithm == KokkosKernels::Experimental::Graph::SPGEMM_KK_MULTICOLOR){
+  else if (spgemm_algorithm == KokkosSparse::SPGEMM_KK_MULTICOLOR){
     write_type = 3;
   }
-  else if (spgemm_algorithm == KokkosKernels::Experimental::Graph::SPGEMM_KK_MULTICOLOR2){
+  else if (spgemm_algorithm == KokkosSparse::SPGEMM_KK_MULTICOLOR2){
     write_type = 4;
   }
-  else if (spgemm_algorithm == KokkosKernels::Experimental::Graph::SPGEMM_KK_SPEED){
+  else if (spgemm_algorithm == KokkosSparse::SPGEMM_KK_SPEED){
     write_type = 1;
   }
 

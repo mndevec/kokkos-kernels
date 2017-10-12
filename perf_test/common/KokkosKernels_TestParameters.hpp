@@ -83,8 +83,10 @@ struct Parameters{
   // 0 - triangle_count
   // 1 - first count then instantiate
   // 2- more options.
-  int cache_flush;
+  size_t cache_flush;
   size_t fast_memory_size;
+  bool run_int_int_double;
+  bool run_size_t_int_double;
   // 0 - no flush
   // 1 - soft flush
   // 2 - hard flush with rand.
@@ -97,7 +99,7 @@ struct Parameters{
     multi_color_scale = 1;
     shmemsize = 16128;
     team_size = -1;
-    use_dynamic_scheduling = 0;
+    use_dynamic_scheduling = 1;
     verbose = 0;
     spgemm_step = '0';
     vector_size = -1;
@@ -124,6 +126,9 @@ struct Parameters{
     sort_option = -1;
     cache_flush = 1;
     fast_memory_size = size_t (16) * 1024 * 1024 * 1024;
+    run_int_int_double = true;
+    run_size_t_int_double = true;
+
   }
 };
 }

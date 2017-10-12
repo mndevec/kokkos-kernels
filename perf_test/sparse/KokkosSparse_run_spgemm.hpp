@@ -44,6 +44,10 @@
 
 #include "KokkosSparse_spgemm.hpp"
 #include "KokkosKernels_TestParameters.hpp"
+#include<Kokkos_Random.hpp>
+
+
+#include<parallel/algorithm>
 
 
 #define TRANPOSEFIRST false
@@ -194,6 +198,9 @@ crsMat_t3 run_experiment(
 
   if (use_dynamic_scheduling){
     kh.set_dynamic_scheduling(true);
+  }
+  else {
+	  kh.set_dynamic_scheduling(false);
   }
   if (verbose){
     kh.set_verbose(true);
@@ -362,7 +369,8 @@ crsMat_t3 run_experiment(
   std::cout << "fast_memory_size_:" << fast_memory_size * sizeof(char) / 1024. / 1024./ 1024. << std::endl;
 
   Kokkos::Impl::Timer timer1;
-  kh.set_fast_memory(fast_memory_size, allocate_scratch_memory);
+  if (i == 0)
+	  kh.set_fast_memory(fast_memory_size, allocate_scratch_memory);
   if (allocate_scratch_memory){
 	  std::cout << "Fast Memory Alloc Time:" << timer1.seconds() << std::endl;
   }
@@ -373,6 +381,7 @@ crsMat_t3 run_experiment(
   kh.get_spgemm_handle()->set_read_write_cost_calc (calculate_read_write_cost);
   kh.get_spgemm_handle()->set_compression_steps(!params.compression2step);
   kh.get_spgemm_handle()->set_compression(params.apply_compression);
+  kh.get_spgemm_handle()->set_min_hash_size_scale(params.minhashscale);
 
   if (coloring_input_file){
     kh.get_spgemm_handle()->coloring_input_file = /*std::string(&spgemm_step) + "_" +*/ std::string(coloring_input_file);
@@ -382,13 +391,43 @@ crsMat_t3 run_experiment(
   }
 
 
+  if (i == 0){
+    kh.get_spgemm_handle()->set_read_write_cost_calc(params.calculate_read_write_cost);
+  }
+  else {
+    kh.get_spgemm_handle()->set_read_write_cost_calc(false);
+  }
+
+
     row_mapC = lno_view_t
               ("non_const_lnow_row",
                   m + 1);
     entriesC = lno_nnz_view_t ("");
     valuesC = scalar_view_t ("");
 
+    if (params.cache_flush)
+    {
+  	  size_t flush_size = params.cache_flush;
+  	  std::cout <<"flush_size:" << flush_size << std::endl;
+  	  typedef Kokkos::View<scalar_t *, PersistentMemSpace> scalar_flush_t;
+  	  scalar_flush_t flush ("random", flush_size);
+#pragma omp parallel for
+  	  for (size_t i = 0; i < flush_size; ++i){
+  		flush[i] = (i * (i - 1)) & (i + 1)  % 101;
+  	  }
+  	  scalar_t reduction = 0;
+  	  KokkosKernels::Impl::kk_reduce_view<scalar_flush_t, ExecSpace>(flush_size, flush, reduction);
+  	  std::cout << "reduction:" << reduction << std::endl;
+  	  //KokkosKernels::Impl::kk_exclusive_parallel_prefix_sum<scalar_flush_t, ExecSpace>(flush_size, flush);
+  	  __gnu_parallel::sort(flush.data(), flush.data()+flush_size);
+
+  	  KokkosKernels::Impl::print_1Dview(flush);
+
+    }
+
+
     timer1.reset();
+
     spgemm_symbolic (
         &kh,
         m,
@@ -406,12 +445,35 @@ crsMat_t3 run_experiment(
     ExecSpace::fence();
     double symbolic_time = timer1.seconds();
 
-    Kokkos::Impl::Timer timer3;
+
+
     size_type c_nnz_size = kh.get_spgemm_handle()->get_c_nnz();
     if (c_nnz_size){
       entriesC = lno_nnz_view_t (Kokkos::ViewAllocateWithoutInitializing("entriesC"), c_nnz_size);
       valuesC = scalar_view_t (Kokkos::ViewAllocateWithoutInitializing("valuesC"), c_nnz_size);
     }
+
+
+    if (params.cache_flush)
+    {
+    	  size_t flush_size = params.cache_flush;
+    	  std::cout <<"flush_size:" << flush_size << std::endl;
+    	  typedef Kokkos::View<scalar_t *, PersistentMemSpace> scalar_flush_t;
+    	  scalar_flush_t flush ("random", flush_size);
+  #pragma omp parallel for
+    	  for (size_t i = 0; i < flush_size; ++i){
+    		flush[i] = (i * (i - 1)) & (i + 1)  % 101;
+    	  }
+    	  scalar_t reduction = 0;
+    	  KokkosKernels::Impl::kk_reduce_view<scalar_flush_t, ExecSpace>(flush_size, flush, reduction);
+    	  std::cout << "reduction:" << reduction << std::endl;
+    	  //KokkosKernels::Impl::kk_exclusive_parallel_prefix_sum<scalar_flush_t, ExecSpace>(flush_size, flush);
+    	  __gnu_parallel::sort(flush.data(), flush.data()+flush_size);
+
+    	  KokkosKernels::Impl::print_1Dview(flush);
+
+      }
+    Kokkos::Impl::Timer timer3;
 
     spgemm_numeric(
         &kh,
@@ -440,7 +502,7 @@ crsMat_t3 run_experiment(
     << " numeric_time:" << numeric_time << std::endl;
 
     timer1.reset();
-    if (allocate_scratch_memory){
+    if (i == repeat - 1 && allocate_scratch_memory){
       kh.free_fast_memory();
   	  std::cout << "Fast Memory Free Time:" << timer1.seconds() << std::endl;
     }

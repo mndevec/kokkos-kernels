@@ -461,8 +461,8 @@ namespace Experiment{
             c_mat_file);
       }
       else {
-        slow_cols_view_t sorted_adj("sorted adj", c_fast_crsmat.graph.entries.dimension_0());
-        slow_values_view_t sorted_vals("sorted vals", c_fast_crsmat.graph.entries.dimension_0());
+        slow_cols_view_t sorted_adj("sorted adj", c_slow_crsmat.graph.entries.dimension_0());
+        slow_values_view_t sorted_vals("sorted vals", c_slow_crsmat.graph.entries.dimension_0());
 
         KokkosKernels::Impl::kk_sort_graph<
         const_slow_row_map_view_t, const_slow_cols_view_t, const_slow_values_view_t, slow_cols_view_t, slow_values_view_t, myExecSpace>(

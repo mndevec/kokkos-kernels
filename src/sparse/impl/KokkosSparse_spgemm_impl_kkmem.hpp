@@ -691,6 +691,7 @@ void
   nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 #endif
 
+  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
   size_t chunksize = min_hash_size; //this is for used hash indices
   chunksize += min_hash_size ; //this is for the hash begins
@@ -838,6 +839,7 @@ void
 	  nnz_lno_t env_chunksize = atoi(getenv("CHUNKSIZE"));
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
@@ -1080,6 +1082,7 @@ void
 	  nnz_lno_t env_chunksize = atoi(getenv("CHUNKSIZE"));
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
@@ -1268,6 +1271,7 @@ void
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
 
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
 	  chunksize += min_hash_size ; //this is for the hash begins
@@ -1525,6 +1529,7 @@ void
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
 
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
 	  chunksize += min_hash_size ; //this is for the hash begins
@@ -1776,6 +1781,8 @@ void
   while (max_nnz > min_hash_size){
     min_hash_size *= 4;
   }
+
+  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
   size_t chunksize = min_hash_size; //this is for used hash indices
   chunksize += min_hash_size ; //this is for the hash begins
@@ -2040,6 +2047,10 @@ struct KokkosSPGEMM
     hm2.hash_begins = (nnz_lno_t *) (tmp);
     tmp += pow2_hash_size;
     hm2.hash_nexts = (nnz_lno_t *) (tmp);
+    tmp += max_nnz;
+    hm2.keys = (nnz_lno_t *) (tmp);
+    tmp += max_nnz;
+    hm2.values = (scalar_t *) (tmp);
 
     Kokkos::parallel_for(Kokkos::TeamThreadRange(teamMember, team_row_begin, team_row_end), [&] (const nnz_lno_t& row_index) {
       nnz_lno_t globally_used_hash_count = 0;
@@ -2047,58 +2058,79 @@ struct KokkosSPGEMM
 
       const size_type c_row_begin = rowmapC[row_index];
       const size_type c_row_end = rowmapC[row_index +1 ];
-      const size_type current_c_row_end = rowmapC_ends[row_index];
 
       const nnz_lno_t global_memory_hash_size = nnz_lno_t(c_row_end - c_row_begin);
       hm2.max_value_size = global_memory_hash_size;
-      hm2.keys = pEntriesC + c_row_begin;
-      hm2.values = pvaluesC + c_row_begin;
+      //hm2.keys = pEntriesC + c_row_begin;
+      //hm2.values = pvaluesC + c_row_begin;
 
-      nnz_lno_t left_work = current_c_row_end - c_row_begin;
+      {
+    	  const size_type col_begin = row_mapA[row_index];
+    	  nnz_lno_t left_work = row_mapA[row_index + 1] - col_begin;
+    	  for ( nnz_lno_t ii = 0; ii < left_work; ++ii){
+    		  size_type a_col = col_begin + ii;
+    		  nnz_lno_t rowB = entriesA[a_col];
 
-      for ( nnz_lno_t ii = 0; ii < left_work; ++ii){
+    		  if (rowB < _b_row_begins || rowB >= _b_row_ends) continue;
+    		  scalar_t valA = valuesA[a_col];
 
-          const size_type adjind = ii + c_row_begin;
-          nnz_lno_t c_col_ind = pEntriesC[adjind];
-          scalar_t c_val = pvaluesC[adjind];
-          nnz_lno_t hash = c_col_ind & pow2_hash_func;
+    		  size_type rowBegin = row_mapB(rowB);
+    		  nnz_lno_t left_workB = row_mapBends(rowB) - rowBegin;
 
-          hm2.sequential_insert_into_hash_mergeAdd_TrackHashes(
-              hash, c_col_ind, c_val,
-              &used_hash_sizes, hm2.max_value_size
-              ,&globally_used_hash_count,
-              globally_used_hash_indices
-          );
+    		  for ( nnz_lno_t i = 0; i < left_workB; ++i){
+    			  const size_type adjind = i + rowBegin;
+    			  nnz_lno_t b_col_ind = entriesB[adjind];
+    			  scalar_t b_val = valuesB[adjind] * valA;
+    			  nnz_lno_t hash = b_col_ind & pow2_hash_func;
+
+    			  //this has to be a success, we do not need to check for the success.
+    			  //int insertion =
+    			  hm2.sequential_insert_into_hash_mergeAdd_TrackHashes(
+    					  hash, b_col_ind, b_val,
+						  &used_hash_sizes, hm2.max_value_size
+						  ,&globally_used_hash_count,
+						  globally_used_hash_indices
+    			  );
+    		  }
+    	  }
       }
 
-      const size_type col_begin = row_mapA[row_index];
-      left_work = row_mapA[row_index + 1] - col_begin;
-      for ( nnz_lno_t ii = 0; ii < left_work; ++ii){
-        size_type a_col = col_begin + ii;
-        nnz_lno_t rowB = entriesA[a_col];
 
-        if (rowB < _b_row_begins || rowB >= _b_row_ends) continue;
-        scalar_t valA = valuesA[a_col];
+      {
+          const size_type current_c_row_end = rowmapC_ends[row_index];
+    	  nnz_lno_t left_work = current_c_row_end - c_row_begin;
 
-        size_type rowBegin = row_mapB(rowB);
-        nnz_lno_t left_workB = row_mapBends(rowB) - rowBegin;
+    	  for ( nnz_lno_t ii = 0; ii < left_work; ++ii){
 
-        for ( nnz_lno_t i = 0; i < left_workB; ++i){
-          const size_type adjind = i + rowBegin;
-          nnz_lno_t b_col_ind = entriesB[adjind];
-          scalar_t b_val = valuesB[adjind] * valA;
-          nnz_lno_t hash = b_col_ind & pow2_hash_func;
+    		  const size_type adjind = ii + c_row_begin;
+    		  nnz_lno_t c_col_ind = pEntriesC[adjind];
+    		  scalar_t c_val = pvaluesC[adjind];
+    		  nnz_lno_t hash = c_col_ind & pow2_hash_func;
 
-          //this has to be a success, we do not need to check for the success.
-          //int insertion =
-          hm2.sequential_insert_into_hash_mergeAdd_TrackHashes(
-              hash, b_col_ind, b_val,
-              &used_hash_sizes, hm2.max_value_size
-              ,&globally_used_hash_count,
-              globally_used_hash_indices
-          );
-        }
+    		  hm2.sequential_insert_into_hash_mergeAdd_TrackHashes(
+    				  hash, c_col_ind, c_val,
+					  &used_hash_sizes, hm2.max_value_size
+					  ,&globally_used_hash_count,
+					  globally_used_hash_indices
+    		  );
+    	  }
       }
+
+
+      {
+
+
+    	  memcpy ( pEntriesC+c_row_begin, hm2.keys, sizeof(nnz_lno_t)*used_hash_sizes );
+    	  memcpy ( pvaluesC+c_row_begin, hm2.values, sizeof(scalar_t)*used_hash_sizes );
+    	  /*
+          for ( nnz_lno_t ii = 0; ii < used_hash_sizes; ++ii){
+                  const size_type adjind = ii + c_row_begin;
+                  pEntriesC[adjind] = hm2.keys[ii];
+                  pvaluesC[adjind]= hm2.values[ii];
+          }
+          */
+      }
+
 
       rowmapC_ends(row_index) = c_row_begin + used_hash_sizes;
 
@@ -2345,10 +2377,13 @@ void
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
 
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
 	  chunksize += min_hash_size ; //this is for the hash begins
-	  chunksize += max_nnz; //this is for hash nexts
+	  chunksize += max_nnz; //this is for hash keys
+	  chunksize += max_nnz * (double (sizeof(scalar_t)) / sizeof(nnz_lno_t)); //this is for hash values
+
 	  int num_chunks = concurrency / suggested_vector_size;
 
 	#ifdef KOKKOSKERNELSCHANGEPARAMS
@@ -2550,10 +2585,15 @@ void
 	  nnz_lno_t env_num_chunks = atoi(getenv("NUMCHUNKS"));
 	#endif
 
+	  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 	  size_t chunksize = min_hash_size; //this is for used hash indices
 	  chunksize += min_hash_size ; //this is for the hash begins
 	  chunksize += max_nnz; //this is for hash nexts
+
+	  chunksize += max_nnz; //this is for hash keys
+	  chunksize += max_nnz * (double (sizeof(scalar_t)) / sizeof(nnz_lno_t)); //this is for hash values
+
 	  int num_chunks = concurrency / suggested_vector_size;
 
 	#ifdef KOKKOSKERNELSCHANGEPARAMS

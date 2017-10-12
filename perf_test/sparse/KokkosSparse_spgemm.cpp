@@ -42,18 +42,14 @@
 */
 #include <iostream>
 #include "KokkosKernels_config.h"
-#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
-    defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
-    defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+
+
 #include "KokkosKernels_IOUtils.hpp"
 #include "KokkosSparse_multimem_spgemm.hpp"
 
+#define run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params) \
+                KokkosKernels::Experiment::run_multi_mem_spgemm<SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, EXECSPACE, FASTMEMORYSPACE, SLOWMEMORYSPACE>(params)
 
-
-#define SIZE_TYPE size_t
-#define INDEX_TYPE int
-#define SCALAR_TYPE double
-//double
 
 void print_options(){
   std::cerr << "Options\n" << std::endl;
@@ -75,8 +71,18 @@ void print_options(){
 
 
 int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char **argv){
-  for ( int i = 1 ; i < argc ; ++i ) {
-    if ( 0 == strcasecmp( argv[i] , "threads" ) ) {
+
+	for ( int i = 1 ; i < argc ; ++i ) {
+	if ( 0 == strcasecmp( argv[i] , "int_int_double" ) ) {
+		params.run_int_int_double = true;
+		params.run_size_t_int_double = false;
+	}
+	else if ( 0 == strcasecmp( argv[i] , "size_t_int_double" ) ) {
+		params.run_size_t_int_double = true;
+		params.run_int_int_double = false;
+
+	}
+	else if ( 0 == strcasecmp( argv[i] , "threads" ) ) {
       params.use_threads = atoi( argv[++i] );
     }
     else if ( 0 == strcasecmp( argv[i] , "openmp" ) ) {
@@ -182,6 +188,9 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
     else if ( 0 == strcasecmp( argv[i] , "checkoutput" ) ) {
       params.check_output = 1;
     }
+    else if ( 0 == strcasecmp( argv[i] , "minhashscale" ) ) {
+    	params.minhashscale = atoi( argv[++i] ) ;
+    }
     else if ( 0 == strcasecmp( argv[i] , "amtx" ) ) {
       params.a_mtx_bin_file = argv[++i];
     }
@@ -194,13 +203,19 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
     else if ( 0 == strcasecmp( argv[i] , "dynamic" ) ) {
       params.use_dynamic_scheduling = 1;
     }
-
+    else if ( 0 == strcasecmp( argv[i] , "static" ) ) {
+    	params.use_dynamic_scheduling = 0;
+    }
     else if ( 0 == strcasecmp( argv[i] , "LLT" ) ) {
       params.left_lower_triangle = 1;
     }
     else if ( 0 == strcasecmp( argv[i] , "RLT" ) ) {
       params.right_lower_triangle = 1;
     }
+    else if ( 0 == strcasecmp( argv[i] , "flop" ) ) {
+      params.calculate_read_write_cost = 1;
+    }
+
     else if ( 0 == strcasecmp( argv[i] , "LS" ) ) {
       params.left_sort = 1;
     }
@@ -210,7 +225,9 @@ int parse_inputs (KokkosKernels::Experiment::Parameters &params, int argc, char 
     else if ( 0 == strcasecmp( argv[i] , "FM" ) ) {
     	params.fast_memory_size = atol( argv[++i] );
     }
-
+    else if ( 0 == strcasecmp( argv[i] , "flush" ) ) {
+    	params.cache_flush = atol( argv[++i] );
+    }
     else if ( 0 == strcasecmp( argv[i] , "verbose" ) ) {
       params.verbose = 1;
     }
@@ -331,52 +348,201 @@ int main (int argc, char ** argv){
     std::cout << "B is not provided. Multiplying AxA." << std::endl;
   }
 
+
+  bool run_int_int_double = params.run_int_int_double ;
+  bool run_size_t_int_double = params.run_size_t_int_double ;
+  if (params.use_openmp) {
 #if defined( KOKKOS_HAVE_OPENMP )
 
-  if (params.use_openmp) {
 
-    Kokkos::OpenMP::initialize( params.use_openmp );
+
+	  Kokkos::OpenMP::initialize( params.use_openmp );
 	  Kokkos::OpenMP::print_configuration(std::cout);
 
 #ifdef KOKKOSKERNELS_INST_MEMSPACE_HBWSPACE
-    KokkosKernels::Experiment::run_multi_mem_spgemm
-    <SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, Kokkos::OpenMP, Kokkos::Experimental::HBWSpace, Kokkos::HostSpace>(
-        params
-        );
-#else 
-    KokkosKernels::Experiment::run_multi_mem_spgemm
-    <SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, Kokkos::OpenMP, Kokkos::OpenMP::memory_space, Kokkos::OpenMP::memory_space>(
-        params
-        );
+
+	  typedef Kokkos::Experimental::HBWSpace FASTMEMORYSPACE;
+	  typedef Kokkos::HostSpace SLOWMEMORYSPACE;
+	  typedef Kokkos::OpenMP EXECSPACE;
+
+	  if(run_size_t_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+
+		  std::cerr << "HBW running size_t_int_double" << std::endl;
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef size_t SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+#else
+		  std::cerr << "size_t_int_double is not instantiated" << std::endl;
 #endif
-    Kokkos::OpenMP::finalize();
+	  }
+
+	  if(run_int_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_INT) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+		  std::cerr << "HBW running int_int_double" << std::endl;
+
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef int SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+
+#else
+		  std::cerr << "int_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
+#else 
+
+	  typedef Kokkos::OpenMP::memory_space FASTMEMORYSPACE;
+	  typedef Kokkos::OpenMP::memory_space SLOWMEMORYSPACE;
+	  typedef Kokkos::OpenMP EXECSPACE;
+	  if(run_size_t_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+
+		  std::cerr << "runnning size_t_int_double" << std::endl;
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef size_t SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+#else
+		  std::cerr << "size_t_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
+	  if(run_int_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_INT) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+		  std::cerr << "runnning int_int_double" << std::endl;
+
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef int SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+
+#else
+		  std::cerr << "int_int_double is not instantiated" << std::endl;
+#endif
+	  }
+#endif
+
+	  Kokkos::OpenMP::finalize();
+#else
+	  std::cerr << "OPENMP IS NOT DEFINED" << std::endl;
+#endif
   }
 
-#endif
 
-#if defined( KOKKOS_HAVE_CUDA )
   if (params.use_cuda) {
-    Kokkos::HostSpace::execution_space::initialize();
-    Kokkos::Cuda::initialize( Kokkos::Cuda::SelectDevice( 0 ) );
-    Kokkos::Cuda::print_configuration(std::cout);
+#if defined( KOKKOS_HAVE_CUDA )
+
+	  Kokkos::HostSpace::execution_space::initialize();
+	  Kokkos::Cuda::initialize( Kokkos::Cuda::SelectDevice( 0 ) );
+	  Kokkos::Cuda::print_configuration(std::cout);
 
 #ifdef KOKKOSKERNELS_INST_MEMSPACE_CUDAHOSTPINNEDSPACE
-    KokkosKernels::Experiment::run_multi_mem_spgemm
-    <SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, Kokkos::Cuda, Kokkos::Cuda::memory_space, Kokkos::CudaHostPinnedSpace>(
-        params
-        );
+
+	  typedef Kokkos::CudaHostPinnedSpace SLOWMEMORYSPACE;
+	  typedef Kokkos::Cuda::memory_space FASTMEMORYSPACE;
+	  typedef Kokkos::Cuda EXECSPACE;
+
+
+	  if(run_size_t_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+
+		  std::cerr << "runnning size_t_int_double" << std::endl;
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef size_t SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
 #else
-    KokkosKernels::Experiment::run_multi_mem_spgemm
-    <SIZE_TYPE, INDEX_TYPE, SCALAR_TYPE, Kokkos::Cuda, Kokkos::Cuda::memory_space, Kokkos::Cuda::memory_space>(
-        params
-        );
+		  std::cerr << "size_t_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
+	  if(run_int_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_INT) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+		  std::cerr << "runnning int_int_double" << std::endl;
+
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef int SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+
+#else
+		  std::cerr << "int_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
+
+#else
+	  typedef Kokkos::Cuda::memory_space FASTMEMORYSPACE;
+	  typedef Kokkos::Cuda::memory_space SLOWMEMORYSPACE;
+	  typedef Kokkos::Cuda EXECSPACE;
+
+
+
+	  if(run_size_t_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_SIZE_T) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+
+		  std::cerr << "runnning size_t_int_double" << std::endl;
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef size_t SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+#else
+		  std::cerr << "size_t_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
+	  if(run_int_int_double)
+	  {
+#if defined(KOKKOSKERNELS_INST_DOUBLE) &&  \
+		defined(KOKKOSKERNELS_INST_OFFSET_INT) && \
+		defined(KOKKOSKERNELS_INST_ORDINAL_INT)
+		  std::cerr << "runnning int_int_double" << std::endl;
+
+		  typedef double SCALAR_TYPE;
+		  typedef int INDEX_TYPE;
+		  typedef int SIZE_TYPE;
+		  run_multimem_exp(SIZE_TYPE,INDEX_TYPE, SCALAR_TYPE,EXECSPACE, FASTMEMORYSPACE,SLOWMEMORYSPACE, params);
+
+#else
+		  std::cerr << "int_int_double is not instantiated" << std::endl;
+#endif
+	  }
+
 #endif
 
-    Kokkos::Cuda::finalize();
-    Kokkos::HostSpace::execution_space::finalize();
+	  Kokkos::Cuda::finalize();
+	  Kokkos::HostSpace::execution_space::finalize();
+#else
+	  std::cerr << "CUDA IS NOT DEFINED" << std::endl;
+
+#endif
   }
 
-#endif
+
 
 
   return 0;
@@ -384,11 +550,6 @@ int main (int argc, char ** argv){
 }
 
 
-#else
-int main() {
-  std::cout << "Not instantiated" << std::endl;
-}
-#endif
 
 
 

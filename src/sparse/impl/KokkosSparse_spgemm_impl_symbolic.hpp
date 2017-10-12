@@ -1100,10 +1100,14 @@ void KokkosSPGEMM
 
   KokkosKernels::Impl::ExecSpaceType my_exec_space = this->handle->get_handle_exec_space();
   size_type compressed_b_size = bnnz;
-#ifdef KOKKOSKERNELS_ANALYZE_COMPRESSION
-  //TODO: DELETE BELOW
+//#ifdef KOKKOSKERNELS_ANALYZE_COMPRESSION
+  
+  int read_write_cost = this->handle->get_spgemm_handle()->get_read_write_cost_calc();
+  if (read_write_cost)
   {
-std::cout << "\t\t!!!!DELETE THIS PART!!!! PRINTING STATS HERE!!!!!" << std::endl;
+   std::cout << "\t\t!!!!DELETE THIS PART!!!! PRINTING STATS HERE!!!!!" << std::endl;
+   KokkosKernels::Impl::print_1Dview(old_row_mapB);
+   KokkosKernels::Impl::print_1Dview(row_mapB_);
       KokkosKernels::Impl::kk_reduce_diff_view <b_original_row_view_t, b_compressed_row_view_t, MyExecSpace>
   (brows, old_row_mapB, row_mapB_, compressed_b_size);
       std::cout << "\tcompressed_b_size:" << compressed_b_size << " bnnz:" << bnnz << std::endl;
@@ -1116,36 +1120,36 @@ std::cout << "\t\t!!!!DELETE THIS PART!!!! PRINTING STATS HERE!!!!!" << std::end
       size_t compressd_max_flops= 0;
       size_t original_max_flops = 0;
       for (int i = 0; i < a_row_cnt; ++i){
-  int arb = row_mapA(i);
-        int are = row_mapA(i + 1);
-        size_t compressed_row_flops = 0;
-  size_t original_row_flops = 0;
-  for (int j = arb; j < are; ++j){
-          int ae = entriesA(j);
-          compressed_row_flops += row_mapB_(ae) - old_row_mapB(ae);
-    original_row_flops += old_row_mapB(ae + 1) - old_row_mapB(ae);
-        }
-        if (compressed_row_flops > compressd_max_flops) compressd_max_flops = compressed_row_flops;
-        if (original_row_flops > original_max_flops) original_max_flops = original_row_flops;
-        compressed_flops += compressed_row_flops;
-        original_flops += original_row_flops;
+	      size_type arb = row_mapA(i);
+	      size_type are = row_mapA(i + 1);
+	      size_t compressed_row_flops = 0;
+	      size_t original_row_flops = 0;
+	      for (size_type j = arb; j < are; ++j){
+		      nnz_lno_t ae = entriesA(j);
+		      compressed_row_flops += row_mapB_(ae) - old_row_mapB(ae);
+		      original_row_flops += row_mapB(ae + 1) - row_mapB(ae);
+	      }
+	      if (compressed_row_flops > compressd_max_flops) compressd_max_flops = compressed_row_flops;
+	      if (original_row_flops > original_max_flops) original_max_flops = original_row_flops;
+	      compressed_flops += compressed_row_flops;
+	      original_flops += original_row_flops;
       }
-std::cout   << "original_flops:" << original_flops
-    << " compressed_flops:" << compressed_flops
-    << " FLOP_REDUCTION:" << double(compressed_flops) / original_flops
-    << std::endl;
-std::cout   << "original_max_flops:" << original_max_flops
-    << " compressd_max_flops:" << compressd_max_flops
-    << " MEM_REDUCTION:" << double(compressd_max_flops) / original_max_flops * 2
-    << std::endl;
+      std::cout   << "original_flops:" << original_flops
+	      << " compressed_flops:" << compressed_flops
+	      << " FLOP_REDUCTION:" << double(compressed_flops) / original_flops
+	      << std::endl;
+      std::cout   << "original_max_flops:" << original_max_flops
+	      << " compressd_max_flops:" << compressd_max_flops
+	      << " MEM_REDUCTION:" << double(compressd_max_flops) / original_max_flops * 2
+	      << std::endl;
       std::cout   << "\tOriginal_B_SIZE:" << bnnz
-    << " Compressed_b_size:" << compressed_b_size
-    << std::endl;
-std::cout << " AR AC ANNZ BR BC BNNZ original_flops compressed_flops FLOP_REDUCTION original_max_flops compressd_max_flops MEM_REDUCTION riginal_B_SIZE Compressed_b_size B_SIZE_REDUCTION" <<  std::endl;
-std::cout << " " << a_row_cnt << " " << b_row_cnt << " " << entriesA.dimension_0() << " " << b_row_cnt << " " << b_col_cnt << " " << entriesB.dimension_0() << " " <<  original_flops << " " << compressed_flops << " " << double(compressed_flops) / original_flops << " " << original_max_flops << " " << compressd_max_flops << " " << double(compressd_max_flops) / original_max_flops * 2 << " " << bnnz << " " << compressed_b_size <<" "<< double(compressed_b_size) / bnnz  << std::endl;
+	      << " Compressed_b_size:" << compressed_b_size
+	      << std::endl;
+      std::cout << " AR AC ANNZ BR BC BNNZ original_flops compressed_flops FLOP_REDUCTION original_max_flops compressd_max_flops MEM_REDUCTION riginal_B_SIZE Compressed_b_size B_SIZE_REDUCTION" <<  std::endl;
+      std::cout << " " << a_row_cnt << " " << b_row_cnt << " " << entriesA.dimension_0() << " " << b_row_cnt << " " << b_col_cnt << " " << entriesB.dimension_0() << " " <<  original_flops << " " << compressed_flops << " " << double(compressed_flops) / original_flops << " " << original_max_flops << " " << compressd_max_flops << " " << double(compressd_max_flops) / original_max_flops * 2 << " " << bnnz << " " << compressed_b_size <<" "<< double(compressed_b_size) / bnnz  << std::endl;
   }
   //TODO DELETE ABOVE
-#endif
+//#endif
   if (my_exec_space == KokkosKernels::Impl::Exec_CUDA){
 KokkosKernels::Impl::kk_reduce_diff_view <b_original_row_view_t, b_compressed_row_view_t, MyExecSpace> (brows, old_row_mapB, row_mapB_, compressed_b_size);
       if (KOKKOSKERNELS_VERBOSE){
@@ -1169,6 +1173,8 @@ suggested_vector_size = 4;
   while (maxNumRoughNonzeros > min_hash_size){
     min_hash_size *= 2;
   }
+
+  min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
   //set the chunksize.
   size_t chunksize = min_hash_size ; //this is for used hash indices
@@ -1472,6 +1478,7 @@ void KokkosSPGEMM
 	while (maxNumRoughNonzeros > min_hash_size){
 		min_hash_size *= 2;
 	}
+    min_hash_size *= this->handle->get_spgemm_handle()->get_min_hash_size_scale();
 
 	//set the chunksize.
 	size_t chunksize = min_hash_size ; //this is for used hash indices

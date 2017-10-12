@@ -65,6 +65,7 @@ void KokkosSPGEMM
     KokkosKernels::Impl::ExecSpaceType my_exec_space = KokkosKernels::Impl::get_exec_space_type<MyExecSpace>();
 
     if (KOKKOSKERNELS_VERBOSE){
+      std::cout << "use_dynamic_schedule:" << use_dynamic_schedule << std::endl;
       std::cout << "Numeric PHASE" << std::endl;
     }
 
@@ -125,6 +126,7 @@ void KokkosSPGEMM
 
 
 			if (KOKKOSKERNELS_VERBOSE){
+				std::cout << "use_dynamic_schedule:" << use_dynamic_schedule << std::endl;
 				std::cout << "SYMBOLIC PHASE with compression" << std::endl;
 			}
 			//First Compress B.
